@@ -17,8 +17,8 @@ namespace StatServer
 
         public string Map { get; set; }
         public string GameMode { get; set; }
-        public string FragLimit { get; set; }
-        public string TimeLimit { get; set; }
+        public int FragLimit { get; set; }
+        public int TimeLimit { get; set; }
         public double TimeElapsed { get; set; }
         public PlayerInfo[] Scoreboard { get; set; }
 

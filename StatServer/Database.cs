@@ -16,22 +16,22 @@ namespace StatServer
             GameMatchStats
         }
 
-        private Dictionary<Table, string[]> Fields;
-        private Dictionary<Table, int> RowsCount;
+        private Dictionary<Table, string[]> fields;
+        private Dictionary<Table, int> rowsCount;
 
         public Database()
         {
             Initialize();
-            Fields = new Dictionary<Table, string[]>
+            fields = new Dictionary<Table, string[]>
             {
                 [Table.ServersInformation] = new[] { "name", "game_modes" },
                 [Table.GameMatchPlayersResults] = new[] { "name", "frags", "kills", "deaths" },
                 [Table.GameMatchStats] =
                 new[] { "map", "game_mode", "frag_limit", "time_limit", "time_elapsed", "scoreboard" }
             };
-            RowsCount = new Dictionary<Table, int>();
-            foreach (var table in (Table[]) Enum.GetValues(typeof(Table)))
-                RowsCount[table] = CalculateTableRowsCount(table);
+            rowsCount = new Dictionary<Table, int>();
+            foreach (var table in (Table[])Enum.GetValues(typeof(Table)))
+                rowsCount[table] = CalculateTableRowsCount(table);
         }
 
         private void Initialize()
@@ -95,26 +95,60 @@ namespace StatServer
 	                    'time_limit' INTEGER,
 	                    'time_elapsed' REAL,
 	                    'scoreboard' TEXT NOT NULL
-                    )"
+                      )"
             };
             ExecuteQuery(commands);
         }
 
-        private string CreateInsertQuery(Table tableName, params object[] values)
+
+        private string CreateInsertQuery(Table table, params object[] values)
         {
-            return null;
+            var fieldsAndValues = FieldsAndValuesToString(table, values);
+            return $"INSERT INTO {table} ({fieldsAndValues.Item1}), ({fieldsAndValues.Item2});";
         }
 
-        public int AddToTableServersInformation(GameServerInfo info)
+        private string CreateUpdateQuery(Table table, int id, string field, object newValue)
         {
-            var command = $"INSERT INTO ServersInformation (name, game_modes) VALUES ('{info.Name}', '{info.EncodeGameModes()}');";
+            return $"UPDATE {table} SET {field} = {newValue} WHERE id = {id}";
+        }
+
+        private Tuple<string, string> FieldsAndValuesToString(Table table, params object[] values)
+        {
+            var fields = string.Join(", ", this.fields[table]);
+            for (var i = 0; i < values.Length; i++)
+                values[i] = $"'{values[i]}'";
+            var valuesString = string.Join(", ", values);
+
+            return Tuple.Create(fields, valuesString);
+        }
+
+        private void InsertInto(Table table, params object[] values)
+        {
+            var command = CreateInsertQuery(table, values);
             ExecuteQuery(command);
-            return ++RowsCount[Table.ServersInformation];
+            rowsCount[table]++;
         }
 
-        public void Add(Table tableName, params object[] values)
+        public void AddToTableServersInformation(GameServerInfo info)
         {
-            throw new NotImplementedException();
+            InsertInto(Table.ServersInformation, info.Name, info.EncodeGameModes());
+        }
+
+        public void AddToTableGameMatchStats(GameMatchStats stats)
+        {
+            var indeces = new int[stats.Scoreboard.Length];
+            for (var i = 0; i < stats.Scoreboard.Length; i++)
+            {
+                AddToTableGameMatchPlayersResults(stats.Scoreboard[i]);
+                indeces[i] = rowsCount[Table.GameMatchPlayersResults];
+            }
+            InsertInto(Table.GameMatchStats, stats.Map, stats.GameMode, stats.FragLimit, 
+                stats.TimeLimit, stats.TimeElapsed, string.Join(", ", indeces));
+        }
+
+        private void AddToTableGameMatchPlayersResults(PlayerInfo info)
+        {
+            InsertInto(Table.GameMatchPlayersResults, info.Name, info.Frags, info.Kills, info.Deaths);
         }
     }
 }

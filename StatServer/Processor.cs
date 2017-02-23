@@ -13,23 +13,23 @@ namespace StatServer
         public const int MaxCount = 50;
         public const int MinCount = 0;
 
+        private Regex gameServerInfoPath = new Regex(@"^/servers/(\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}-\d{1,5})/info$", RegexOptions.Compiled);
+        private Regex gameServerStatsPath = new Regex(@"^/servers/(\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}-\d{1,5})/stats$", RegexOptions.Compiled);
+        private Regex gameMatchStatsPath = new Regex(@"^/servers/(\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}-\d{1,5})/matches/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)", RegexOptions.Compiled);
+        private Regex allGameServersInfoPath = new Regex(@"^/servers/info$", RegexOptions.Compiled);
+        private Regex playerStatsPath = new Regex(@"^/players/(\S*?)/stats$", RegexOptions.Compiled);
+        private Regex recentMatchesPath = new Regex(@"^/reports/recent_matches(/-{0,1}\d{1})?$", RegexOptions.Compiled);
+        private Regex bestPlayersPath = new Regex(@"^/reports/best_players(/-{0,1}\d{1})?$", RegexOptions.Compiled);
+        private Regex popularServersPath = new Regex(@"^/reports/popular_servers(/-{0,1}\d{1})?$", RegexOptions.Compiled);
+
         private Dictionary<string, int> players;
         private Dictionary<string, int> gameServers;
         private Dictionary<int, Dictionary<int, int>> playersGameServers;
+        private readonly Database database;
 
         public Processor()
         {
-            var patterns = new[]
-            {
-                @"^/servers/\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}-\d{1,5}/info$",
-                @"^/servers/\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}-\d{1,5}/stats$",
-                @"^/servers/\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}-\d{1,5}/matches/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z",
-                @"^/servers/info$",
-                @"^/players/\S*?/stats$",
-                @"^/reports/recent_matches(/-{0,1}\d{1})?$",
-                @"^/reports/best_players(/-{0,1}\d{1})?$",
-                @"^/reports/popular_servers(/-{0,1}\d{1})?$"
-            };
+            database = new Database();
             players = new Dictionary<string, int>();
             gameServers = new Dictionary<string, int>();
             playersGameServers = new Dictionary<int, Dictionary<int, int>>();
@@ -37,15 +37,22 @@ namespace StatServer
 
         public HttpResponse HandleRequest(string uri, HttpMethod method, string json = null)
         {
-            return new HttpResponse(200);
+            if (gameServerInfoPath.IsMatch(uri) && method == HttpMethod.Put)
+                return PutServerInformation(json);
+            if (gameServerInfoPath.IsMatch(uri) && method == HttpMethod.Get)
+                return GetServerInformation(gameServerInfoPath.Match(uri).Groups[1].ToString());
+
+            return new HttpResponse(404);
         }
+
+
 
         public HttpResponse GetServerInformation(string address)
         {
             throw new NotImplementedException();
         }
 
-        public void PutServerInformation(GameServerInfo information)
+        public HttpResponse PutServerInformation(string json)
         {
             throw new NotImplementedException();
         }
