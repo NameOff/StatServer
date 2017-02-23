@@ -13,6 +13,10 @@ namespace StatServer
         public const int MaxCount = 50;
         public const int MinCount = 0;
 
+        private Dictionary<string, int> players;
+        private Dictionary<string, int> gameServers;
+        private Dictionary<int, Dictionary<int, int>> playersGameServers;
+
         public Processor()
         {
             var patterns = new[]
@@ -26,6 +30,9 @@ namespace StatServer
                 @"^/reports/best_players(/-{0,1}\d{1})?$",
                 @"^/reports/popular_servers(/-{0,1}\d{1})?$"
             };
+            players = new Dictionary<string, int>();
+            gameServers = new Dictionary<string, int>();
+            playersGameServers = new Dictionary<int, Dictionary<int, int>>();
         }
 
         public HttpResponse HandleRequest(string uri, HttpMethod method, string json = null)
