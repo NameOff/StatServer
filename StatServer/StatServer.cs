@@ -3,6 +3,7 @@ using System.IO;
 using System.Net;
 using System.Text;
 using System.Net.Http;
+using static System.String;
 
 namespace StatServer
 {
@@ -49,17 +50,28 @@ namespace StatServer
         private static void SendMessage(HttpListenerContext context, HttpResponse response)
         {
             context.Response.StatusCode = response.Code;
-            if (response.Message == null)
-                return;
 
-            context.Response.ContentLength64 = Encoding.UTF8.GetByteCount(response.Message);
-            using (var stream = context.Response.OutputStream)
+            if (response.Message != null)
             {
-                using (var writer = new StreamWriter(stream))
+                context.Response.ContentLength64 = Encoding.UTF8.GetByteCount(response.Message);
+                using (var stream = context.Response.OutputStream)
                 {
-                    writer.Write(response.Message);
+                    using (var writer = new StreamWriter(stream))
+                    {
+                        writer.Write(response.Message);
+                    }
                 }
             }
+
+            RemoveHeaders(context.Response);
+            context.Response.Close();
+        }
+
+        private static void RemoveHeaders(HttpListenerResponse response)
+        {
+            response.Headers.Add("Server", Empty);
+            response.Headers.Add("Date", Empty);
+            response.KeepAlive = false;
         }
 
         private static string GetRequestPostJson(HttpListenerRequest request)

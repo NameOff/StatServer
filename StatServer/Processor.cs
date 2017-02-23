@@ -15,12 +15,22 @@ namespace StatServer
 
         public Processor()
         {
-            
+            var patterns = new[]
+            {
+                @"^/servers/\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}-\d{1,5}/info$",
+                @"^/servers/\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}-\d{1,5}/stats$",
+                @"^/servers/\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}-\d{1,5}/matches/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z",
+                @"^/servers/info$",
+                @"^/players/\S*?/stats$",
+                @"^/reports/recent_matches(/-{0,1}\d{1})?$",
+                @"^/reports/best_players(/-{0,1}\d{1})?$",
+                @"^/reports/popular_servers(/-{0,1}\d{1})?$"
+            };
         }
 
         public HttpResponse HandleRequest(string uri, HttpMethod method, string json = null)
         {
-            throw new NotImplementedException();
+            return new HttpResponse(200);
         }
 
         public HttpResponse GetServerInformation(string address)

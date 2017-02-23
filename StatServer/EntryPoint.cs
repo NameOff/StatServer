@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Net.Configuration;
+using System.Text.RegularExpressions;
 using Fclp;
+using System.Web;
 
 namespace StatServer
 {
@@ -28,6 +31,8 @@ namespace StatServer
 
         private static void RunServer(Options options)
         {
+            
+
             using (var server = new StatServer())
                 server.Start(options.Prefix);
         }
