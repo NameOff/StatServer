@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using Newtonsoft.Json;
 
 namespace StatServer
 {
@@ -21,6 +22,7 @@ namespace StatServer
         private Regex recentMatchesPath = new Regex(@"^/reports/recent_matches(/-{0,1}\d{1})?$", RegexOptions.Compiled);
         private Regex bestPlayersPath = new Regex(@"^/reports/best_players(/-{0,1}\d{1})?$", RegexOptions.Compiled);
         private Regex popularServersPath = new Regex(@"^/reports/popular_servers(/-{0,1}\d{1})?$", RegexOptions.Compiled);
+        private Dictionary<Regex, Func<HttpRequest, HttpResponse>> MethodByPattern;
 
         private Dictionary<string, int> players;
         private Dictionary<string, int> gameServers;
@@ -33,22 +35,105 @@ namespace StatServer
             players = new Dictionary<string, int>();
             gameServers = new Dictionary<string, int>();
             playersGameServers = new Dictionary<int, Dictionary<int, int>>();
+            MethodByPattern = CreateMethodByPattern();
         }
 
-        public HttpResponse HandleRequest(string uri, HttpMethod method, string json = null)
+        private Dictionary<Regex, Func<HttpRequest, HttpResponse>> CreateMethodByPattern()
         {
-            if (gameServerInfoPath.IsMatch(uri) && method == HttpMethod.Put)
-                return PutServerInformation(json);
-            if (gameServerInfoPath.IsMatch(uri) && method == HttpMethod.Get)
-                return GetServerInformation(gameServerInfoPath.Match(uri).Groups[1].ToString());
-
-            return new HttpResponse(404);
+            return new Dictionary<Regex, Func<HttpRequest, HttpResponse>>
+            {
+                [gameServerInfoPath] = HandleGameServerInformationRequest,
+                [gameMatchStatsPath] = HandleGameMatchStatsRequest,
+                [gameServerStatsPath] = HandleGameServerStatsRequest,
+                [allGameServersInfoPath] = HandleAllGameServersInfoRequest,
+                [playerStatsPath] = HandlePlayerStatsRequest,
+                [recentMatchesPath] = HandleRecentMatchesRequest,
+                [bestPlayersPath] = HandleBestPlayersRequest,
+                [popularServersPath] = HandlePopularServersRequest
+            };
         }
 
-
-
-        public HttpResponse GetServerInformation(string address)
+        public HttpResponse HandleRequest(HttpRequest request)
         {
+            try
+            {
+                foreach (var pattern in MethodByPattern.Keys)
+                    if (pattern.IsMatch(request.Uri))
+                        return MethodByPattern[pattern](request);
+            }
+            catch (JsonReaderException e)
+            {
+                return new HttpResponse(HttpResponse.Answer.BadRequest);
+            }
+            return new HttpResponse(HttpResponse.Answer.NotFound);
+        }
+
+        public HttpResponse HandleGameServerInformationRequest(HttpRequest request)
+        {
+            var endpoint = gameServerInfoPath.Match(request.Uri).Groups[1].ToString();
+            if (request.Method == HttpMethod.Put)
+            {
+                var info = JsonConvert.DeserializeObject<GameServerInfo>(request.Json);
+                database.InsertServerInformation(info);
+                gameServers[endpoint] = database.GetRowsCount(Database.Table.ServersInformation);
+                return new HttpResponse(HttpResponse.Answer.OK);
+            }
+
+            if (request.Method == HttpMethod.Get)
+            {
+                if (!gameServers.ContainsKey(endpoint))
+                    return new HttpResponse(HttpResponse.Answer.NotFound);
+                var info = database.GetServerInformation(gameServers[endpoint]);
+                return new HttpResponse(HttpResponse.Answer.OK, JsonConvert.SerializeObject(info, Formatting.Indented, Serializable.Settings));
+            }
+
+            return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+        }
+
+        public HttpResponse HandleGameMatchStatsRequest(HttpRequest request)
+        {
+            throw new NotImplementedException();
+        }
+
+        public HttpResponse HandleAllGameServersInfoRequest(HttpRequest request)
+        {
+            if (request.Method != HttpMethod.Get)
+                return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+            throw new NotImplementedException();
+        }
+
+        public HttpResponse HandlePlayerStatsRequest(HttpRequest request)
+        {
+            if (request.Method != HttpMethod.Get)
+                return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+            throw new NotImplementedException();
+        }
+
+        public HttpResponse HandleRecentMatchesRequest(HttpRequest request)
+        {
+            if (request.Method != HttpMethod.Get)
+                return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+            throw new NotImplementedException();
+        }
+
+        public HttpResponse HandleBestPlayersRequest(HttpRequest request)
+        {
+            if (request.Method != HttpMethod.Get)
+                return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+            throw new NotImplementedException();
+        }
+
+        public HttpResponse HandlePopularServersRequest(HttpRequest request)
+        {
+            if (request.Method != HttpMethod.Get)
+                return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+            throw new NotImplementedException();
+        }
+
+        public HttpResponse HandleGameServerStatsRequest(HttpRequest request)
+        {
+            if (request.Method != HttpMethod.Get)
+                return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
             throw new NotImplementedException();
         }
 

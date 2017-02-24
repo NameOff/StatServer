@@ -31,11 +31,6 @@ namespace StatServer
 
         private static void RunServer(Options options)
         {
-            var a = new Regex(@"(\d)22");
-            //Console.WriteLine(a.IsMatch("122"));
-            Console.WriteLine(a.Match("122").Groups[1]);
-            return;
-
             using (var server = new StatServer())
                 server.Start(options.Prefix);
         }

@@ -94,6 +94,7 @@
     <Compile Include="EntryPoint.cs" />
     <Compile Include="GameMatchInfo.cs" />
     <Compile Include="GameServerStats.cs" />
+    <Compile Include="HttpRequest.cs" />
     <Compile Include="HttpResponse.cs" />
     <Compile Include="Serializable.cs" />
     <Compile Include="SerializerContractResolver.cs" />

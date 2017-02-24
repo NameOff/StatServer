@@ -16,22 +16,22 @@ namespace StatServer
             GameMatchStats
         }
 
-        private Dictionary<Table, string[]> fields;
-        private Dictionary<Table, int> rowsCount;
+        private Dictionary<Table, string[]> tableFields;
+        private Dictionary<Table, int> tableRowsCount;
 
         public Database()
         {
             Initialize();
-            fields = new Dictionary<Table, string[]>
+            tableFields = new Dictionary<Table, string[]>
             {
                 [Table.ServersInformation] = new[] { "name", "game_modes" },
                 [Table.GameMatchPlayersResults] = new[] { "name", "frags", "kills", "deaths" },
                 [Table.GameMatchStats] =
                 new[] { "map", "game_mode", "frag_limit", "time_limit", "time_elapsed", "scoreboard" }
             };
-            rowsCount = new Dictionary<Table, int>();
+            tableRowsCount = new Dictionary<Table, int>();
             foreach (var table in (Table[])Enum.GetValues(typeof(Table)))
-                rowsCount[table] = CalculateTableRowsCount(table);
+                tableRowsCount[table] = CalculateTableRowsCount(table);
         }
 
         private void Initialize()
@@ -53,19 +53,37 @@ namespace StatServer
             }
         }
 
-        private string ExecuteQueryAndGetAnswer(string command)
+        private string[] GetTableRowById(Table table, int id)
         {
+            var command = $"SELECT * FROM {table} WHERE id = {id};";
             using (var connection = new SQLiteConnection($"Data Source = {DatabaseName}; Version=3;"))
             {
                 connection.Open();
-                return new SQLiteCommand(command, connection).ExecuteNonQuery().ToString();
+                var cmd = new SQLiteCommand(command, connection);
+                using (var reader = cmd.ExecuteReader())
+                {
+                    reader.Read();
+                    var values = new string[reader.FieldCount];
+                    for (var i = 0; i < reader.FieldCount; i++)
+                        values[i] = reader.GetValue(i).ToString();
+                    return values;
+                }
             }
+        }
+
+        public int GetRowsCount(Table table)
+        {
+            return tableRowsCount[table];
         }
 
         private int CalculateTableRowsCount(Table table)
         {
             var command = $"SELECT COUNT(id) FROM {table}";
-            return int.Parse(ExecuteQueryAndGetAnswer(command));
+            using (var connection = new SQLiteConnection($"Data Source = {DatabaseName}; Version=3;"))
+            {
+                connection.Open();
+                return int.Parse(new SQLiteCommand(command, connection).ExecuteScalar().ToString());
+            }
         }
 
         private void CreateAllTables()
@@ -104,7 +122,7 @@ namespace StatServer
         private string CreateInsertQuery(Table table, params object[] values)
         {
             var fieldsAndValues = FieldsAndValuesToString(table, values);
-            return $"INSERT INTO {table} ({fieldsAndValues.Item1}), ({fieldsAndValues.Item2});";
+            return $"INSERT INTO {table} ({fieldsAndValues.Item1}) VALUES ({fieldsAndValues.Item2});";
         }
 
         private string CreateUpdateQuery(Table table, int id, string field, object newValue)
@@ -114,7 +132,7 @@ namespace StatServer
 
         private Tuple<string, string> FieldsAndValuesToString(Table table, params object[] values)
         {
-            var fields = string.Join(", ", this.fields[table]);
+            var fields = string.Join(", ", tableFields[table]);
             for (var i = 0; i < values.Length; i++)
                 values[i] = $"'{values[i]}'";
             var valuesString = string.Join(", ", values);
@@ -126,12 +144,18 @@ namespace StatServer
         {
             var command = CreateInsertQuery(table, values);
             ExecuteQuery(command);
-            rowsCount[table]++;
+            tableRowsCount[table]++;
         }
 
-        public void AddToTableServersInformation(GameServerInfo info)
+        public void InsertServerInformation(GameServerInfo info)
         {
             InsertInto(Table.ServersInformation, info.Name, info.EncodeGameModes());
+        }
+
+        public GameServerInfo GetServerInformation(int id)
+        {
+            var values = GetTableRowById(Table.ServersInformation, id);
+            return new GameServerInfo(values[1], values[2]);
         }
 
         public void AddToTableGameMatchStats(GameMatchStats stats)
@@ -140,7 +164,7 @@ namespace StatServer
             for (var i = 0; i < stats.Scoreboard.Length; i++)
             {
                 AddToTableGameMatchPlayersResults(stats.Scoreboard[i]);
-                indeces[i] = rowsCount[Table.GameMatchPlayersResults];
+                indeces[i] = tableRowsCount[Table.GameMatchPlayersResults];
             }
             InsertInto(Table.GameMatchStats, stats.Map, stats.GameMode, stats.FragLimit, 
                 stats.TimeLimit, stats.TimeElapsed, string.Join(", ", indeces));

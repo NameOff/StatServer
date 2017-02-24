@@ -2,17 +2,25 @@
 {
     public class HttpResponse
     {
+        public enum Answer
+        {
+            OK = 200,
+            BadRequest = 400,
+            NotFound = 404,
+            MethodNotAllowed = 405
+        }
+
         public readonly int Code;
         public readonly string Message;
 
-        public HttpResponse(int code)
+        public HttpResponse(Answer answer)
         {
-            Code = code;
+            Code = (int)answer;
         }
 
-        public HttpResponse(int code, string message)
+        public HttpResponse(Answer answer, string message)
         {
-            Code = code;
+            Code = (int)answer;
             Message = message;
         }
     }

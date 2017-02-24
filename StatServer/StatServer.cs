@@ -37,11 +37,11 @@ namespace StatServer
             if (context.Request.HttpMethod == HttpMethod.Put.ToString())
             {
                 var json = GetRequestPostJson(context.Request);
-                response = processor.HandleRequest(context.Request.RawUrl, HttpMethod.Put, json);
+                response = processor.HandleRequest(new HttpRequest(HttpMethod.Put, context.Request.RawUrl, json));
             }
             else
             {
-                response = processor.HandleRequest(context.Request.RawUrl, HttpMethod.Get);
+                response = processor.HandleRequest(new HttpRequest(HttpMethod.Get, context.Request.RawUrl));
             }
 
             SendMessage(context, response);
