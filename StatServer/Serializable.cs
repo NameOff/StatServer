@@ -11,8 +11,8 @@ namespace StatServer
     {
         private readonly SerializerContractResolver serializer;
 
-        public static JsonSerializerSettings Settings = 
-            new JsonSerializerSettings { ContractResolver = new SerializerContractResolver()};
+        public static JsonSerializerSettings Settings =
+            new JsonSerializerSettings { ContractResolver = new FirstLetterLowerCaseJsonConverter() };
 
         public Serializable()
         {

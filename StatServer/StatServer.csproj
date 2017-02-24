@@ -92,6 +92,7 @@
   <ItemGroup>
     <Compile Include="Database.cs" />
     <Compile Include="EntryPoint.cs" />
+    <Compile Include="FirstLetterLowerCaseJsonConverter.cs" />
     <Compile Include="GameMatchInfo.cs" />
     <Compile Include="GameServerStats.cs" />
     <Compile Include="HttpRequest.cs" />

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
@@ -26,15 +27,15 @@ namespace StatServer
 
         private Dictionary<string, int> players;
         private Dictionary<string, int> gameServers;
-        private Dictionary<int, Dictionary<int, int>> playersGameServers;
+        //private Dictionary<int, Dictionary<int, int>> playersGameServers;
         private readonly Database database;
 
         public Processor()
         {
             database = new Database();
             players = new Dictionary<string, int>();
-            gameServers = new Dictionary<string, int>();
-            playersGameServers = new Dictionary<int, Dictionary<int, int>>();
+            gameServers = database.GetGameServersDictionary();
+            //playersGameServers = new Dictionary<int, Dictionary<int, int>>();
             MethodByPattern = CreateMethodByPattern();
         }
 
@@ -55,6 +56,7 @@ namespace StatServer
 
         public HttpResponse HandleRequest(HttpRequest request)
         {
+            //lock
             try
             {
                 foreach (var pattern in MethodByPattern.Keys)
@@ -74,7 +76,7 @@ namespace StatServer
             if (request.Method == HttpMethod.Put)
             {
                 var info = JsonConvert.DeserializeObject<GameServerInfo>(request.Json);
-                database.InsertServerInformation(info);
+                database.InsertServerInformation(info, endpoint);
                 gameServers[endpoint] = database.GetRowsCount(Database.Table.ServersInformation);
                 return new HttpResponse(HttpResponse.Answer.OK);
             }
@@ -92,7 +94,22 @@ namespace StatServer
 
         public HttpResponse HandleGameMatchStatsRequest(HttpRequest request)
         {
-            throw new NotImplementedException();
+            var endpoint = gameServerInfoPath.Match(request.Uri).Groups[1].ToString();
+            if (!gameServers.ContainsKey(endpoint))
+                return new HttpResponse(HttpResponse.Answer.BadRequest);
+            if (request.Method == HttpMethod.Put)
+            {
+                var matchStats = JsonConvert.DeserializeObject<GameMatchStats>(request.Json);
+                database.InsertGameMatchStats(matchStats);
+                //TODO 
+            }
+
+            if (request.Method == HttpMethod.Get)
+            {
+                //TODO
+            }
+
+            return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
         }
 
         public HttpResponse HandleAllGameServersInfoRequest(HttpRequest request)

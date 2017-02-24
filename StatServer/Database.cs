@@ -24,7 +24,7 @@ namespace StatServer
             Initialize();
             tableFields = new Dictionary<Table, string[]>
             {
-                [Table.ServersInformation] = new[] { "name", "game_modes" },
+                [Table.ServersInformation] = new[] { "name", "game_modes", "endpoint" },
                 [Table.GameMatchPlayersResults] = new[] { "name", "frags", "kills", "deaths" },
                 [Table.GameMatchStats] =
                 new[] { "map", "game_mode", "frag_limit", "time_limit", "time_elapsed", "scoreboard" }
@@ -63,14 +63,37 @@ namespace StatServer
                 using (var reader = cmd.ExecuteReader())
                 {
                     reader.Read();
-                    var values = new string[reader.FieldCount];
-                    for (var i = 0; i < reader.FieldCount; i++)
-                        values[i] = reader.GetValue(i).ToString();
-                    return values;
+                    return GetValuesFrom(reader);
                 }
             }
         }
 
+        public IEnumerable<string[]> GetAllRows(Table table)
+        {
+            using (var connection = new SQLiteConnection($"Data Source = {DatabaseName}; Version=3;"))
+            {
+                connection.Open();
+                var rowsCount = GetRowsCount(table);
+                for (int id = 1; id <= rowsCount; id++)
+                {
+                    var command = $"SELECT * FROM {table} WHERE id = {id};";
+                    var cmd = new SQLiteCommand(command, connection);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        reader.Read();
+                        yield return GetValuesFrom(reader);
+                    }
+                }
+            }
+        }
+
+        private string[] GetValuesFrom(SQLiteDataReader reader)
+        {
+            var values = new string[reader.FieldCount];
+            for (var i = 0; i < reader.FieldCount; i++)
+                values[i] = reader.GetValue(i).ToString();
+            return values;
+        }
         public int GetRowsCount(Table table)
         {
             return tableRowsCount[table];
@@ -94,7 +117,8 @@ namespace StatServer
                     (
 	                    'id' INTEGER PRIMARY KEY AUTOINCREMENT,
 	                    'name' TEXT NOT NULL,
-	                    'game_modes' TEXT NOT NULL
+	                    'game_modes' TEXT NOT NULL,
+                        'endpoint' TEXT NOT NULL
                     )",
                 @"CREATE TABLE 'GameMatchPlayersResults'
                     (
@@ -113,11 +137,10 @@ namespace StatServer
 	                    'time_limit' INTEGER,
 	                    'time_elapsed' REAL,
 	                    'scoreboard' TEXT NOT NULL
-                      )"
+                    )"
             };
             ExecuteQuery(commands);
         }
-
 
         private string CreateInsertQuery(Table table, params object[] values)
         {
@@ -147,9 +170,18 @@ namespace StatServer
             tableRowsCount[table]++;
         }
 
-        public void InsertServerInformation(GameServerInfo info)
+        public void InsertServerInformation(GameServerInfo info, string endpoint)
         {
-            InsertInto(Table.ServersInformation, info.Name, info.EncodeGameModes());
+            InsertInto(Table.ServersInformation, info.Name, info.EncodeGameModes(), endpoint);
+        }
+
+        public Dictionary<string, int> GetGameServersDictionary()
+        {
+            var gameServers = new Dictionary<string, int>();
+            var rows = GetAllRows(Table.ServersInformation);
+            foreach (var row in rows)
+                gameServers[row[3]] = int.Parse(row[0]);
+            return gameServers;
         }
 
         public GameServerInfo GetServerInformation(int id)
@@ -158,7 +190,7 @@ namespace StatServer
             return new GameServerInfo(values[1], values[2]);
         }
 
-        public void AddToTableGameMatchStats(GameMatchStats stats)
+        public void InsertGameMatchStats(GameMatchStats stats)
         {
             var indeces = new int[stats.Scoreboard.Length];
             for (var i = 0; i < stats.Scoreboard.Length; i++)
