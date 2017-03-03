@@ -22,6 +22,22 @@ namespace StatServer
         public double TimeElapsed { get; set; }
         public PlayerInfo[] Scoreboard { get; set; }
 
+        public GameMatchStats()
+        {
+            
+        }
+
+        public GameMatchStats(string map, string gameMode, int fragLimit, int timeLimit, double timeElapsed,
+            params PlayerInfo[] scoreboard)
+        {
+            Map = map;
+            GameMode = gameMode;
+            FragLimit = fragLimit;
+            TimeLimit = timeLimit;
+            TimeElapsed = timeElapsed;
+            Scoreboard = scoreboard;
+        }
+
         public string Serialize(params Field[] fields)
         {
             return Serialize(this, fields.Select(field => field.ToString()).ToArray());

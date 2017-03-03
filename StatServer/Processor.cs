@@ -27,6 +27,7 @@ namespace StatServer
 
         private Dictionary<string, int> players;
         private Dictionary<string, int> gameServers;
+        private Dictionary<GameMatchResult, int> gameMatches;
         //private Dictionary<int, Dictionary<int, int>> playersGameServers;
         private readonly Database database;
 
@@ -34,6 +35,7 @@ namespace StatServer
         {
             database = new Database();
             players = new Dictionary<string, int>();
+            gameMatches = database.GetGameMatchDictionary();
             gameServers = database.GetGameServersDictionary();
             //playersGameServers = new Dictionary<int, Dictionary<int, int>>();
             MethodByPattern = CreateMethodByPattern();
@@ -94,19 +96,27 @@ namespace StatServer
 
         public HttpResponse HandleGameMatchStatsRequest(HttpRequest request)
         {
-            var endpoint = gameServerInfoPath.Match(request.Uri).Groups[1].ToString();
+            var endpoint = gameMatchStatsPath.Match(request.Uri).Groups[1].ToString();
+            var timestamp = gameMatchStatsPath.Match(request.Uri).Groups[2].ToString();
             if (!gameServers.ContainsKey(endpoint))
                 return new HttpResponse(HttpResponse.Answer.BadRequest);
+            var matchInfo = new GameMatchResult(endpoint, timestamp);
             if (request.Method == HttpMethod.Put)
             {
                 var matchStats = JsonConvert.DeserializeObject<GameMatchStats>(request.Json);
-                database.InsertGameMatchStats(matchStats);
-                //TODO 
+                matchInfo.Results = matchStats;
+                database.InsertGameMatchStats(matchInfo);
+                gameMatches[matchInfo] = database.GetRowsCount(Database.Table.GameMatchStats);
+                return new HttpResponse(HttpResponse.Answer.OK);
             }
 
             if (request.Method == HttpMethod.Get)
             {
-                //TODO
+                if (!gameMatches.ContainsKey(matchInfo))
+                    return new HttpResponse(HttpResponse.Answer.NotFound);
+                var stats = database.GetGameMatchStats(gameMatches[matchInfo]);
+                var json = JsonConvert.SerializeObject(stats, Formatting.Indented, Serializable.Settings);
+                return new HttpResponse(HttpResponse.Answer.OK, json);
             }
 
             return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
@@ -116,7 +126,9 @@ namespace StatServer
         {
             if (request.Method != HttpMethod.Get)
                 return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
-            throw new NotImplementedException();
+            var answer = database.GetAllGameServerInformation().ToArray();
+            var json = JsonConvert.SerializeObject(answer, Formatting.Indented, Serializable.Settings);
+            return new HttpResponse(HttpResponse.Answer.OK, json);
         }
 
         public HttpResponse HandlePlayerStatsRequest(HttpRequest request)

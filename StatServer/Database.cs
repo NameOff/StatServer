@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 
 namespace StatServer
 {
@@ -27,7 +29,7 @@ namespace StatServer
                 [Table.ServersInformation] = new[] { "name", "game_modes", "endpoint" },
                 [Table.GameMatchPlayersResults] = new[] { "name", "frags", "kills", "deaths" },
                 [Table.GameMatchStats] =
-                new[] { "map", "game_mode", "frag_limit", "time_limit", "time_elapsed", "scoreboard" }
+                new[] { "map", "game_mode", "frag_limit", "time_limit", "time_elapsed", "scoreboard", "server", "timestamp" }
             };
             tableRowsCount = new Dictionary<Table, int>();
             foreach (var table in (Table[])Enum.GetValues(typeof(Table)))
@@ -55,7 +57,7 @@ namespace StatServer
 
         private string[] GetTableRowById(Table table, int id)
         {
-            var command = $"SELECT * FROM {table} WHERE id = {id};";
+            var command = CreateSelectRowRequest(table, id);
             using (var connection = new SQLiteConnection($"Data Source = {DatabaseName}; Version=3;"))
             {
                 connection.Open();
@@ -74,9 +76,9 @@ namespace StatServer
             {
                 connection.Open();
                 var rowsCount = GetRowsCount(table);
-                for (int id = 1; id <= rowsCount; id++)
+                for (var id = 1; id <= rowsCount; id++)
                 {
-                    var command = $"SELECT * FROM {table} WHERE id = {id};";
+                    var command = CreateSelectRowRequest(table, id);
                     var cmd = new SQLiteCommand(command, connection);
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -86,6 +88,8 @@ namespace StatServer
                 }
             }
         }
+
+        private string CreateSelectRowRequest(Table table, int id) => $"SELECT * FROM {table} WHERE id = {id};";
 
         private string[] GetValuesFrom(SQLiteDataReader reader)
         {
@@ -136,7 +140,9 @@ namespace StatServer
 	                    'frag_limit' INTEGER,
 	                    'time_limit' INTEGER,
 	                    'time_elapsed' REAL,
-	                    'scoreboard' TEXT NOT NULL
+	                    'scoreboard' TEXT NOT NULL,
+                        'server' TEXT NOT NULL,
+                        'timestamp' TEXT NOT NULL
                     )"
             };
             ExecuteQuery(commands);
@@ -157,10 +163,20 @@ namespace StatServer
         {
             var fields = string.Join(", ", tableFields[table]);
             for (var i = 0; i < values.Length; i++)
-                values[i] = $"'{values[i]}'";
+                values[i] = ObjectToString(values[i]);
             var valuesString = string.Join(", ", values);
 
             return Tuple.Create(fields, valuesString);
+        }
+
+        private string ObjectToString(object obj)
+        {
+            var nfi = new NumberFormatInfo { NumberDecimalSeparator = "." };
+            if (obj is string || obj is DateTime)
+                return $"'{obj}'";
+            if (obj is double)
+                return ((double)obj).ToString(nfi);
+            return obj.ToString();
         }
 
         private void InsertInto(Table table, params object[] values)
@@ -184,22 +200,70 @@ namespace StatServer
             return gameServers;
         }
 
+        public Dictionary<GameMatchResult, int> GetGameMatchDictionary()
+        {
+            var gameMatches = new Dictionary<GameMatchResult, int>();
+            var rows = GetAllRows(Table.GameMatchStats);
+            foreach (var row in rows)
+            {
+                var server = row[7];
+                var timestamp = row[8];
+                var id = int.Parse(row[0]);
+                gameMatches[new GameMatchResult(server, timestamp)] = id;
+            }
+            return gameMatches;
+        }
+
         public GameServerInfo GetServerInformation(int id)
         {
             var values = GetTableRowById(Table.ServersInformation, id);
             return new GameServerInfo(values[1], values[2]);
         }
 
-        public void InsertGameMatchStats(GameMatchStats stats)
+        public IEnumerable<GameServerInfoResponse> GetAllGameServerInformation()
         {
-            var indeces = new int[stats.Scoreboard.Length];
-            for (var i = 0; i < stats.Scoreboard.Length; i++)
+            var rows = GetAllRows(Table.ServersInformation);
+            foreach (var row in rows)
+                yield return new GameServerInfoResponse(row[3], new GameServerInfo(row[1], row[2]));
+        }
+
+        public void InsertGameMatchStats(GameMatchResult info)
+        {
+            var indeces = new int[info.Results.Scoreboard.Length];
+            for (var i = 0; i < info.Results.Scoreboard.Length; i++)
             {
-                AddToTableGameMatchPlayersResults(stats.Scoreboard[i]);
+                AddToTableGameMatchPlayersResults(info.Results.Scoreboard[i]);
                 indeces[i] = tableRowsCount[Table.GameMatchPlayersResults];
             }
-            InsertInto(Table.GameMatchStats, stats.Map, stats.GameMode, stats.FragLimit, 
-                stats.TimeLimit, stats.TimeElapsed, string.Join(", ", indeces));
+            InsertInto(Table.GameMatchStats, info.Results.Map, info.Results.GameMode, info.Results.FragLimit,
+                info.Results.TimeLimit, info.Results.TimeElapsed, string.Join(", ", indeces), info.Server, info.Timestamp);
+        }
+
+        private PlayerInfo GetPlayerInformation(int id)
+        {
+            var data = GetTableRowById(Table.GameMatchPlayersResults, id);
+            return new PlayerInfo(data[1], int.Parse(data[2]), int.Parse(data[3]), int.Parse(data[4]));
+        }
+
+        public GameMatchStats GetGameMatchStats(int id)
+        {
+            var data = GetTableRowById(Table.GameMatchStats, id);
+            var scoreboard = GetPlayerInfo(ParseIds(data[6]));
+            return new GameMatchStats(data[1], data[2], int.Parse(data[3]), int.Parse(data[4]), double.Parse(data[5]), scoreboard);
+        }
+
+        private IEnumerable<int> ParseIds(string ids)
+        {
+            return ids
+                .Split(',')
+                .Select(int.Parse);
+        }
+
+        private PlayerInfo[] GetPlayerInfo(IEnumerable<int> id)
+        {
+            return id
+                .Select(GetPlayerInformation)
+                .ToArray();
         }
 
         private void AddToTableGameMatchPlayersResults(PlayerInfo info)
