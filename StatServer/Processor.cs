@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using System.Web;
 using Newtonsoft.Json;
 
 namespace StatServer
@@ -15,28 +13,36 @@ namespace StatServer
         public const int MaxCount = 50;
         public const int MinCount = 0;
 
-        private Regex gameServerInfoPath = new Regex(@"^/servers/(\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}-\d{1,5})/info$", RegexOptions.Compiled);
-        private Regex gameServerStatsPath = new Regex(@"^/servers/(\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}-\d{1,5})/stats$", RegexOptions.Compiled);
-        private Regex gameMatchStatsPath = new Regex(@"^/servers/(\d{1,3}.\d{1,3}.\d{1,3}.\d{1,3}-\d{1,5})/matches/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)", RegexOptions.Compiled);
-        private Regex allGameServersInfoPath = new Regex(@"^/servers/info$", RegexOptions.Compiled);
-        private Regex playerStatsPath = new Regex(@"^/players/(\S*?)/stats$", RegexOptions.Compiled);
-        private Regex recentMatchesPath = new Regex(@"^/reports/recent_matches(/-{0,1}\d{1})?$", RegexOptions.Compiled);
-        private Regex bestPlayersPath = new Regex(@"^/reports/best_players(/-{0,1}\d{1})?$", RegexOptions.Compiled);
-        private Regex popularServersPath = new Regex(@"^/reports/popular_servers(/-{0,1}\d{1})?$", RegexOptions.Compiled);
-        private Dictionary<Regex, Func<HttpRequest, HttpResponse>> MethodByPattern;
+        private readonly Regex gameServerInfoPath = new Regex(@"^/servers/(?<gameServerId>\S*?)/info$", RegexOptions.Compiled);
+        private readonly Regex gameServerStatsPath = new Regex(@"^/servers/(?<gameServerId>\S*?)/stats$", RegexOptions.Compiled);
+        private readonly Regex gameMatchStatsPath = new Regex(@"^/servers/(?<gameServerId>\S*?)/matches/(?<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)", RegexOptions.Compiled);
+        private readonly Regex allGameServersInfoPath = new Regex(@"^/servers/info$", RegexOptions.Compiled);
+        private readonly Regex playerStatsPath = new Regex(@"^/players/(?<playerName>\S*?)/stats$", RegexOptions.Compiled);
+        private readonly Regex recentMatchesPath = new Regex(@"^/reports/recent_matches(?<count>/-{0,1}\d{1})?$", RegexOptions.Compiled);
+        private readonly Regex bestPlayersPath = new Regex(@"^/reports/best_players(?<count>/-{0,1}\d{1})?$", RegexOptions.Compiled);
+        private readonly Regex popularServersPath = new Regex(@"^/reports/popular_servers(?<count>/-{0,1}\d{1})?$", RegexOptions.Compiled);
+        private readonly Dictionary<Regex, Func<HttpRequest, HttpResponse>> MethodByPattern;
+
+        private DateTime lastDate { get; set; }
 
         private Dictionary<string, int> players;
-        private Dictionary<string, int> gameServers;
-        private Dictionary<GameMatchResult, int> gameMatches;
+        private readonly Dictionary<string, int> gameServers;
+        private readonly Dictionary<GameMatchResult, int> gameMatches;
+        private readonly Dictionary<string, DateTime> gameServersFirstMatchDate;
+        private readonly Dictionary<string, DateTime> playersFirstMatchDate;
         //private Dictionary<int, Dictionary<int, int>> playersGameServers;
+        private readonly Dictionary<string, int> gameServersStats;
         private readonly Database database;
 
         public Processor()
         {
             database = new Database();
             players = new Dictionary<string, int>();
-            gameMatches = database.GetGameMatchDictionary();
-            gameServers = database.GetGameServersDictionary();
+            gameMatches = database.CreateGameMatchDictionary();
+            gameServers = database.CreateGameServersDictionary();
+            gameServersStats = database.CreateGameServersStatsDictionary();
+            gameServersFirstMatchDate = database.CreateGameServersFirstMatchDate();
+            playersFirstMatchDate = database.CreatePlayersFirstMatchDate();
             //playersGameServers = new Dictionary<int, Dictionary<int, int>>();
             MethodByPattern = CreateMethodByPattern();
         }
@@ -45,14 +51,14 @@ namespace StatServer
         {
             return new Dictionary<Regex, Func<HttpRequest, HttpResponse>>
             {
-                [gameServerInfoPath] = HandleGameServerInformationRequest,
-                [gameMatchStatsPath] = HandleGameMatchStatsRequest,
-                [gameServerStatsPath] = HandleGameServerStatsRequest,
-                [allGameServersInfoPath] = HandleAllGameServersInfoRequest,
-                [playerStatsPath] = HandlePlayerStatsRequest,
-                [recentMatchesPath] = HandleRecentMatchesRequest,
-                [bestPlayersPath] = HandleBestPlayersRequest,
-                [popularServersPath] = HandlePopularServersRequest
+                [gameServerInfoPath] = HandleGameServerInformationRequest, //+
+                [gameMatchStatsPath] = HandleGameMatchStatsRequest, //  +/-
+                [gameServerStatsPath] = HandleGameServerStatsRequest, //+
+                [allGameServersInfoPath] = HandleAllGameServersInfoRequest, //+
+                [playerStatsPath] = HandlePlayerStatsRequest, //-
+                [recentMatchesPath] = HandleRecentMatchesRequest, //-
+                [bestPlayersPath] = HandleBestPlayersRequest, //-
+                [popularServersPath] = HandlePopularServersRequest //-
             };
         }
 
@@ -65,7 +71,7 @@ namespace StatServer
                     if (pattern.IsMatch(request.Uri))
                         return MethodByPattern[pattern](request);
             }
-            catch (JsonReaderException e)
+            catch (JsonReaderException)
             {
                 return new HttpResponse(HttpResponse.Answer.BadRequest);
             }
@@ -74,7 +80,7 @@ namespace StatServer
 
         public HttpResponse HandleGameServerInformationRequest(HttpRequest request)
         {
-            var endpoint = gameServerInfoPath.Match(request.Uri).Groups[1].ToString();
+            var endpoint = gameServerInfoPath.Match(request.Uri).Groups["gameServerId"].ToString();
             if (request.Method == HttpMethod.Put)
             {
                 var info = JsonConvert.DeserializeObject<GameServerInfo>(request.Json);
@@ -94,15 +100,23 @@ namespace StatServer
             return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
         }
 
+        private void UpdateLastDate(DateTime date)
+        {
+            if (lastDate == default(DateTime) || date > lastDate)
+                lastDate = date;
+        }
+
         public HttpResponse HandleGameMatchStatsRequest(HttpRequest request)
         {
-            var endpoint = gameMatchStatsPath.Match(request.Uri).Groups[1].ToString();
-            var timestamp = gameMatchStatsPath.Match(request.Uri).Groups[2].ToString();
+            var endpoint = gameMatchStatsPath.Match(request.Uri).Groups["gameServerId"].ToString();
+            var timestamp = gameMatchStatsPath.Match(request.Uri).Groups["timestamp"].ToString();
             if (!gameServers.ContainsKey(endpoint))
                 return new HttpResponse(HttpResponse.Answer.BadRequest);
+            var date = Extensions.ParseTimestamp(timestamp);
             var matchInfo = new GameMatchResult(endpoint, timestamp);
             if (request.Method == HttpMethod.Put)
             {
+                UpdateLastDate(date);
                 var matchStats = JsonConvert.DeserializeObject<GameMatchStats>(request.Json);
                 matchInfo.Results = matchStats;
                 database.InsertGameMatchStats(matchInfo);
@@ -122,6 +136,17 @@ namespace StatServer
             return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
         }
 
+        private void AddOrUpdateGameServerStats(string endpoint, DateTime timestamp, GameMatchStats stats)
+        {
+            //if (!gameServersStats.ContainsKey())
+            throw new NotImplementedException();
+        }
+
+        private void AddOrUpdatePlayersStats(string endpoint, DateTime timestamp, GameMatchStats stats)
+        {
+            throw new NotImplementedException();
+        }
+
         public HttpResponse HandleAllGameServersInfoRequest(HttpRequest request)
         {
             if (request.Method != HttpMethod.Get)
@@ -135,6 +160,8 @@ namespace StatServer
         {
             if (request.Method != HttpMethod.Get)
                 return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+            var name = HttpUtility.UrlDecode(playerStatsPath.Match(request.Uri).Groups["playerName"].ToString());
+            
             throw new NotImplementedException();
         }
 
@@ -163,42 +190,15 @@ namespace StatServer
         {
             if (request.Method != HttpMethod.Get)
                 return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
-            throw new NotImplementedException();
-        }
-
-        public HttpResponse PutServerInformation(string json)
-        {
-            throw new NotImplementedException();
-        }
-
-        public HttpResponse GetServerStatistics(string address)
-        {
-            throw new NotImplementedException();
-        }
-
-        public GameServerInfo[] GetAllServersInformation()
-        {
-            throw new NotImplementedException();
-        }
-
-        public GameMatchStats GetMatchStatistics(string serverAddress, DateTime matchEndTime)
-        {
-            throw new NotImplementedException();
-        }
-
-        public GameMatchStats AddMatchStatistics(string serverAddress, DateTime matchEndTime)
-        {
-            throw new NotImplementedException();
-        }
-
-        public PlayerInfo GetPlayerStatistics(string name)
-        {
-            throw new NotImplementedException();
-        }
-
-        public GameServerStats AddServerStatistics(string address, GameServerInfo information)
-        {
-            throw new NotImplementedException();
+            var endpoint = gameServerStatsPath.Match(request.Uri).Groups["gameServerId"].ToString();
+            if (!gameServersStats.ContainsKey(endpoint))
+                return new HttpResponse(HttpResponse.Answer.NotFound);
+            var stats = database.GetGameServerStats(gameServersStats[endpoint]);
+            var json = stats.Serialize(GameServerStats.Field.TotalMatchesPlayed,
+                GameServerStats.Field.MaximumMatchesPerDay, GameServerStats.Field.AverageMatchesPerDay,
+                GameServerStats.Field.MaximumPopulation, GameServerStats.Field.AveragePopulation,
+                GameServerStats.Field.Top5GameModes, GameServerStats.Field.Top5Maps);
+            return new HttpResponse(HttpResponse.Answer.OK, json);
         }
 
         private static int AdjustCount(int count)

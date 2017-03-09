@@ -15,7 +15,8 @@ namespace StatServer
         {
             ServersInformation,
             GameMatchPlayersResults,
-            GameMatchStats
+            GameMatchStats,
+            GameServersStats
         }
 
         private Dictionary<Table, string[]> tableFields;
@@ -28,8 +29,10 @@ namespace StatServer
             {
                 [Table.ServersInformation] = new[] { "name", "game_modes", "endpoint" },
                 [Table.GameMatchPlayersResults] = new[] { "name", "frags", "kills", "deaths" },
-                [Table.GameMatchStats] =
-                new[] { "map", "game_mode", "frag_limit", "time_limit", "time_elapsed", "scoreboard", "server", "timestamp" }
+                [Table.GameMatchStats] = new[] { "map", "game_mode", "frag_limit", "time_limit",
+                    "time_elapsed", "scoreboard", "server", "timestamp" },
+                [Table.GameServersStats] = new[] { "endpoint", "name" , "total_matches_played", "maximum_matches_per_day",
+                    "maximum_population", "game_modes", "maps" }
             };
             tableRowsCount = new Dictionary<Table, int>();
             foreach (var table in (Table[])Enum.GetValues(typeof(Table)))
@@ -53,6 +56,47 @@ namespace StatServer
                 foreach (var command in commands)
                     new SQLiteCommand(command, connection).ExecuteNonQuery();
             }
+        }
+
+        public Dictionary<string, int> CreateGameServersStatsDictionary()
+        {
+            var rows = GetAllRows(Table.GameServersStats);
+            var result = new Dictionary<string, int>();
+            foreach (var row in rows)
+                result[row[1]] = int.Parse(row[0]);
+            return result;
+        }
+
+        public Dictionary<string, DateTime> CreateGameServersFirstMatchDate()
+        {
+            var result = new Dictionary<string, DateTime>();
+            var rows = GetAllRows(Table.GameMatchStats);
+            foreach (var row in rows)
+            {
+                var server = row[7];
+                var date = Extensions.ParseTimestamp(row[8]);
+                if (!result.ContainsKey(server) || result[server] > date)
+                    result[server] = date;
+            }
+            return result;
+        }
+
+        public Dictionary<string, DateTime> CreatePlayersFirstMatchDate()
+        {
+            var result = new Dictionary<string, DateTime>();
+            var rows = GetAllRows(Table.GameMatchStats);
+            foreach (var row in rows)
+            {
+                var ids = ParseIds(row[6]);
+                var players = GetPlayerInfo(ids);
+                var date = Extensions.ParseTimestamp(row[8]);
+                foreach (var player in players)
+                {
+                    if (!result.ContainsKey(player.Name) || result[player.Name] > date)
+                        result[player.Name] = date;
+                }
+            }
+            return result;
         }
 
         private string[] GetTableRowById(Table table, int id)
@@ -143,10 +187,23 @@ namespace StatServer
 	                    'scoreboard' TEXT NOT NULL,
                         'server' TEXT NOT NULL,
                         'timestamp' TEXT NOT NULL
+                    )",
+                @"CREATE TABLE 'GameServersStats'
+                    (
+                        'id' INTEGER PRIMARY KEY AUTOINCREMENT,
+                        'endpoint' TEXT NOT NULL,
+                        'name' TEXT NOT NULL,
+                        'total_matches_played' INTEGER,
+                        'maximum_matches_per_day' INTEGER,
+                        'maximum_population' INTEGER,
+                        'game_modes' TEXT NOT NULL,
+                        'maps' TEXT NOT NULL
                     )"
             };
             ExecuteQuery(commands);
         }
+
+
 
         private string CreateInsertQuery(Table table, params object[] values)
         {
@@ -191,7 +248,7 @@ namespace StatServer
             InsertInto(Table.ServersInformation, info.Name, info.EncodeGameModes(), endpoint);
         }
 
-        public Dictionary<string, int> GetGameServersDictionary()
+        public Dictionary<string, int> CreateGameServersDictionary()
         {
             var gameServers = new Dictionary<string, int>();
             var rows = GetAllRows(Table.ServersInformation);
@@ -200,7 +257,7 @@ namespace StatServer
             return gameServers;
         }
 
-        public Dictionary<GameMatchResult, int> GetGameMatchDictionary()
+        public Dictionary<GameMatchResult, int> CreateGameMatchDictionary()
         {
             var gameMatches = new Dictionary<GameMatchResult, int>();
             var rows = GetAllRows(Table.GameMatchStats);
@@ -243,6 +300,13 @@ namespace StatServer
         {
             var data = GetTableRowById(Table.GameMatchPlayersResults, id);
             return new PlayerInfo(data[1], int.Parse(data[2]), int.Parse(data[3]), int.Parse(data[4]));
+        }
+
+        public GameServerStats GetGameServerStats(int id)
+        {
+            var row = GetTableRowById(Table.GameServersStats, id);
+            return new GameServerStats(row[1], row[2], int.Parse(row[3]), 
+                int.Parse(row[4]), int.Parse(row[5]), row[6], row[7]);
         }
 
         public GameMatchStats GetGameMatchStats(int id)
