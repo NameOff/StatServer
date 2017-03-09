@@ -11,7 +11,7 @@ namespace StatServer
         public GameMatchResult(string server, string timestamp)
         {
             Server = server;
-            Timestamp = DateTime.Parse(timestamp);
+            Timestamp = Extensions.ParseTimestamp(timestamp);
         }
 
         public GameMatchResult()

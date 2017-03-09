@@ -56,11 +56,21 @@ namespace StatServer
             {
                 players = new Dictionary<string, int>(),
                 gameMatches = CreateGameMatchDictionary(),
-                gameServers = CreateGameServersDictionary(),
-                gameServersStats = CreateGameServersStatsDictionary()
+                gameServersInformation = CreateGameServersDictionary(),
+                gameServersStats = CreateGameServersStatsDictionary(),
+                playersStats = CreatePlayersStatsDictionary()
             };
             SetDateTimeDictionaries(cache);
             return cache;
+        }
+
+        public Dictionary<string, int> CreatePlayersStatsDictionary()
+        {
+            var playersStats = new Dictionary<string, int>();
+            var rows = GetAllRows(Table.PlayersStats);
+            foreach (var row in rows)
+                playersStats[row[1]] = int.Parse(row[0]);
+            return playersStats;
         }
 
         private void ExecuteQuery(params string[] commands)
@@ -222,7 +232,6 @@ namespace StatServer
                         'endpoint' TEXT NOT NULL,
                         'name' TEXT NOT NULL,
                         'total_matches_played' INTEGER,
-                        'maximum_matches_per_day' INTEGER,
                         'maximum_population' INTEGER,
                         'total_population' INTEGER,
                         'game_modes' TEXT NOT NULL,
@@ -334,11 +343,18 @@ namespace StatServer
             return new PlayerInfo(data[1], int.Parse(data[2]), int.Parse(data[3]), int.Parse(data[4]));
         }
 
+        public void InsertGameServerStats(GameServerStats stats)
+        {
+            InsertInto(Table.GameServersStats, stats.Endpoint, stats.Name, stats.TotalMatchesPlayed, 
+                stats.MaximumPopulation, stats.TotalPopulation, Extensions.EncodeElements(stats.PlayedGameModes), 
+                Extensions.EncodeElements(stats.PlayedMaps));
+        }
+
         public GameServerStats GetGameServerStats(int id)
         {
             var row = GetTableRowById(Table.GameServersStats, id);
             return new GameServerStats(row[1], row[2], int.Parse(row[3]),
-                int.Parse(row[4]), int.Parse(row[5]), int.Parse(row[6]), row[7], row[8]);
+                int.Parse(row[4]), int.Parse(row[5]), row[6], row[7]);
         }
 
         public PlayerStats GetPlayerStats(int id)
@@ -346,6 +362,13 @@ namespace StatServer
             var row = GetTableRowById(Table.PlayersStats, id);
             return new PlayerStats(row[1], int.Parse(row[2]), int.Parse(row[3]), row[4], row[5],
                 double.Parse(row[6]), Extensions.ParseTimestamp(row[7]), int.Parse(row[8]), int.Parse(row[9]));
+        }
+
+        public void InsertPlayerStats(PlayerStats stats)
+        {
+            InsertInto(Table.PlayersStats, stats.Name, stats.TotalMatchesPlayed, stats.TotalMatchesWon,
+                Extensions.EncodeElements(stats.PlayedServers), Extensions.EncodeElements(stats.PlayedModes),
+                stats.AverageScoreboardPercent, stats.LastMatchPlayed, stats.TotalKills, stats.TotalDeaths);
         }
 
         public GameMatchStats GetGameMatchStats(int id)

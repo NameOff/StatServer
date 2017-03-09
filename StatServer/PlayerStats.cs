@@ -26,10 +26,10 @@ namespace StatServer
         public DateTime LastMatchPlayed { get; set; }
         public double KillToDeathRatio { get; set; }
 
-        private int TotalKills { get; set; }
-        private int TotalDeaths { get; set; }
-        private Dictionary<string, int> playedModes { get; }
-        private Dictionary<string, int> playedServers { get; }
+        public int TotalKills { get; set; }
+        public int TotalDeaths { get; set; }
+        public Dictionary<string, int> PlayedModes { get; }
+        public Dictionary<string, int> PlayedServers { get; }
 
         public PlayerStats(string name, int totalMatchesPlayed, int totalMatchesWon, string encodedServers,
             string encodedModes, double averageScoreboardPercent, DateTime lastMatchPlayed, int totalKills, int totalDeaths)
@@ -37,8 +37,8 @@ namespace StatServer
             Name = name;
             TotalMatchesPlayed = totalMatchesPlayed;
             TotalMatchesWon = totalMatchesWon;
-            playedServers = Extensions.DecodeElements(encodedServers);
-            playedModes = Extensions.DecodeElements(encodedModes);
+            PlayedServers = Extensions.DecodeElements(encodedServers);
+            PlayedModes = Extensions.DecodeElements(encodedModes);
             AverageScoreboardPercent = averageScoreboardPercent;
             LastMatchPlayed = lastMatchPlayed;
             TotalKills = totalKills;
@@ -49,8 +49,8 @@ namespace StatServer
         public PlayerStats(string name)
         {
             Name = name;
-            playedModes = new Dictionary<string, int>();
-            playedServers = new Dictionary<string, int>();
+            PlayedModes = new Dictionary<string, int>();
+            PlayedServers = new Dictionary<string, int>();
         }
 
         private void UpdateKillToDeathRatio()
@@ -71,7 +71,7 @@ namespace StatServer
             return (double)(players.Length - place) / (players.Length - 1) * 100;
         }
 
-        public void UpdateStats(GameMatchResult match, Dictionary<string, Dictionary<DateTime, int>> playersMatchesPerDay)
+        public void UpdateStats(GameMatchResult match, Dictionary<DateTime, int> matchesPerDay)
         {
             var scoreboardPercent = CalculateScoreboardPercent(match);
             if (match.Results.Scoreboard.First().Name == Name)
@@ -80,15 +80,13 @@ namespace StatServer
             var mode = match.Results.GameMode;
             var server = match.Server;
             var date = match.Timestamp;
-            playedModes[mode] = playedModes.ContainsKey(mode) ? playedModes[mode] + 1 : 1;
-            playedServers[server] = playedServers.ContainsKey(server) ? playedServers[server] + 1 : 1;
-            FavoriteServer = playedServers.Keys.OrderByDescending(key => playedServers[key]).First();
-            FavoriteGameMode = playedModes.Keys.OrderByDescending(key => playedModes[key]).First();
-            UniqueServers = playedServers.Keys.Count;
-            playersMatchesPerDay[Name][date] = playersMatchesPerDay[Name].ContainsKey(date)
-                ? playersMatchesPerDay[Name][date] + 1
-                : 1;
-            MaximumMatchesPerDay = playersMatchesPerDay[Name].Values.Max();
+            PlayedModes[mode] = PlayedModes.ContainsKey(mode) ? PlayedModes[mode] + 1 : 1;
+            PlayedServers[server] = PlayedServers.ContainsKey(server) ? PlayedServers[server] + 1 : 1;
+            FavoriteServer = PlayedServers.Keys.OrderByDescending(key => PlayedServers[key]).First();
+            FavoriteGameMode = PlayedModes.Keys.OrderByDescending(key => PlayedModes[key]).First();
+            UniqueServers = PlayedServers.Keys.Count;
+            matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
+            MaximumMatchesPerDay = matchesPerDay.Values.Max();
             var playerResult = match.Results.Scoreboard.First(info => info.Name == Name);
             TotalKills += playerResult.Kills;
             TotalDeaths += playerResult.Deaths;

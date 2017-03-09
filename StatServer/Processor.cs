@@ -71,15 +71,15 @@ namespace StatServer
             {
                 var info = JsonConvert.DeserializeObject<GameServerInfo>(request.Json);
                 database.InsertServerInformation(info, gameServerId);
-                cache.gameServers[gameServerId] = database.GetRowsCount(Database.Table.ServersInformation);
+                cache.gameServersInformation[gameServerId] = database.GetRowsCount(Database.Table.ServersInformation);
                 return new HttpResponse(HttpResponse.Answer.OK);
             }
 
             if (request.Method == HttpMethod.Get)
             {
-                if (!cache.gameServers.ContainsKey(gameServerId))
+                if (!cache.gameServersInformation.ContainsKey(gameServerId))
                     return new HttpResponse(HttpResponse.Answer.NotFound);
-                var info = database.GetServerInformation(cache.gameServers[gameServerId]);
+                var info = database.GetServerInformation(cache.gameServersInformation[gameServerId]);
                 return new HttpResponse(HttpResponse.Answer.OK, JsonConvert.SerializeObject(info, Formatting.Indented, Serializable.Settings));
             }
 
@@ -96,24 +96,13 @@ namespace StatServer
         {
             var gameServerId = gameMatchStatsPath.Match(request.Uri).Groups["gameServerId"].ToString();
             var timestamp = gameMatchStatsPath.Match(request.Uri).Groups["timestamp"].ToString();
-            if (!cache.gameServers.ContainsKey(gameServerId))
+            if (!cache.gameServersInformation.ContainsKey(gameServerId))
                 return new HttpResponse(HttpResponse.Answer.BadRequest);
             var date = Extensions.ParseTimestamp(timestamp);
             var matchInfo = new GameMatchResult(gameServerId, timestamp);
             if (request.Method == HttpMethod.Put)
             {
-                UpdateLastDate(date);
-                var matchStats = JsonConvert.DeserializeObject<GameMatchStats>(request.Json);
-                matchInfo.Results = matchStats;
-                database.InsertGameMatchStats(matchInfo);
-                cache.gameMatches[matchInfo] = database.GetRowsCount(Database.Table.GameMatchStats);
-                var gameServerMatches = cache.gameServersMatchesPerDay[gameServerId];
-                gameServerMatches[date] = gameServerMatches.ContainsKey(date) ? gameServerMatches[date] + 1 : 1;
-                foreach (var player in matchStats.Scoreboard)
-                {
-                    var playerMatches = cache.playersMatchesPerDay[player.Name];
-                    playerMatches[date] = playerMatches.ContainsKey(date) ? playerMatches[date] + 1 : 1;
-                }
+                PutGameMatchResult(gameServerId, request.Json, matchInfo, date);
                 return new HttpResponse(HttpResponse.Answer.OK);
             }
 
@@ -129,15 +118,48 @@ namespace StatServer
             return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
         }
 
-        private void AddOrUpdateGameServerStats(string gameServerId, DateTime timestamp, GameMatchStats stats)
+        private void PutGameMatchResult(string gameServerId, string json, GameMatchResult matchInfo, DateTime date)
         {
-            //if (!gameServersStats.ContainsKey())
-            throw new NotImplementedException();
+            UpdateLastDate(date);
+            var matchStats = JsonConvert.DeserializeObject<GameMatchStats>(json);
+            matchInfo.Results = matchStats;
+            database.InsertGameMatchStats(matchInfo);
+            cache.gameMatches[matchInfo] = database.GetRowsCount(Database.Table.GameMatchStats);
+            foreach (var player in matchStats.Scoreboard)
+                AddOrUpdatePlayersStats(player.Name, matchInfo);
+            var serverName = database.GetServerInformation(cache.gameServersInformation[matchInfo.Server]).Name;
+            AddOrUpdateGameServerStats(serverName, matchInfo);
         }
 
-        private void AddOrUpdatePlayersStats(string gameServerId, DateTime timestamp, GameMatchStats stats)
+        private void AddOrUpdateGameServerStats(string name, GameMatchResult matchResult)
         {
-            throw new NotImplementedException();
+            var gameServerId = matchResult.Server;
+            if (!cache.gameServersStats.ContainsKey(gameServerId))
+            {
+                database.InsertGameServerStats(new GameServerStats(gameServerId, name));
+                cache.gameServersStats[gameServerId] = database.GetRowsCount(Database.Table.GameServersStats);
+            }
+            else
+            {
+                var stats = database.GetGameServerStats(cache.gameServersStats[gameServerId]);
+                stats.Update(matchResult, cache.gameServersMatchesPerDay[gameServerId]);
+                //update todo
+            }
+        }
+
+        private void AddOrUpdatePlayersStats(string name, GameMatchResult matchResult)
+        {
+            if (!cache.playersStats.ContainsKey(name))
+            {
+                database.InsertPlayerStats(new PlayerStats(name));
+                cache.playersStats[name] = database.GetRowsCount(Database.Table.PlayersStats);
+            }
+            else
+            {
+                var playerStats = database.GetPlayerStats(cache.playersStats[name]);
+                playerStats.UpdateStats(matchResult, cache.playersMatchesPerDay[name]);
+                //update todo
+            }
         }
 
         public HttpResponse HandleAllGameServersInfoRequest(HttpRequest request)

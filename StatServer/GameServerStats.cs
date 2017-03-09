@@ -24,20 +24,18 @@ namespace StatServer
         public string[] Top5Maps { get; set; }
         public GameServerInfo Info { get; set; }
 
-        private int totalPopulation { get; set; }
-        private Dictionary<string, int> PlayedGameModes { get; }
-        private Dictionary<string, int> PlayedMaps { get; }
+        public int TotalPopulation { get; set; }
+        public Dictionary<string, int> PlayedGameModes { get; }
+        public Dictionary<string, int> PlayedMaps { get; }
 
         public GameServerStats(string endpoint, string name, int totalMatchesPlayed,
-            int maximumMatchesPerDay, int maximumPopulation, int totalPopulation,
-            string encodedGameModes, string encodedMaps)
+            int maximumPopulation, int totalPopulation, string encodedGameModes, string encodedMaps)
         {
             Endpoint = endpoint;
             Name = name;
             TotalMatchesPlayed = totalMatchesPlayed;
-            MaximumMatchesPerDay = maximumMatchesPerDay;
             MaximumPopulation = maximumPopulation;
-            this.totalPopulation = totalPopulation;
+            TotalPopulation = totalPopulation;
             PlayedGameModes = Extensions.DecodeElements(encodedGameModes);
             PlayedMaps = Extensions.DecodeElements(encodedMaps);
             Top5Maps = GetTop5(PlayedMaps);
@@ -55,17 +53,15 @@ namespace StatServer
         public void CalculateAverageData(DateTime firstMatchDate, DateTime lastMatchDate)
         {
             AverageMatchesPerDay = Extensions.CalculateAverage(TotalMatchesPlayed, firstMatchDate, lastMatchDate);
-            AveragePopulation = Extensions.CalculateAverage(MaximumPopulation, firstMatchDate, lastMatchDate);
+            AveragePopulation = Extensions.CalculateAverage(TotalPopulation, firstMatchDate, lastMatchDate);
         }
 
-        public void Update(GameMatchResult match, Dictionary<string, Dictionary<DateTime, int>> gameServersMatchesPerDay)
+        public void Update(GameMatchResult match, Dictionary<DateTime, int> matchesPerDay)
         {
             TotalMatchesPlayed++;
             var date = match.Timestamp;
-            gameServersMatchesPerDay[Endpoint][date] = gameServersMatchesPerDay[Endpoint].ContainsKey(date)
-                ? gameServersMatchesPerDay[Endpoint][date] + 1
-                : 1;
-            MaximumMatchesPerDay = gameServersMatchesPerDay[Endpoint].Values.Max();
+            matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
+            MaximumMatchesPerDay = matchesPerDay.Values.Max();
             var population = match.Results.Scoreboard.Length;
             MaximumPopulation = MaximumPopulation < population ? population : MaximumPopulation;
             var mode = match.Results.GameMode;
@@ -74,7 +70,7 @@ namespace StatServer
             PlayedMaps[map] = PlayedMaps.ContainsKey(map) ? PlayedMaps[map] + 1 : 1;
             Top5GameModes = GetTop5(PlayedGameModes);
             Top5Maps = GetTop5(PlayedMaps);
-            totalPopulation += population;
+            TotalPopulation += population;
         }
 
         private string[] GetTop5(Dictionary<string, int> played)
