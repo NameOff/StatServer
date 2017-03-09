@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace StatServer
@@ -24,10 +25,31 @@ namespace StatServer
         public double AverageMatchesPerDay { get; set; }
         public DateTime LastMatchPlayed { get; set; }
         public double KillToDeathRatio { get; set; }
-            
+
+        private Dictionary<string, int> playedModes { get; set; }
+        private Dictionary<string, int> playedServers { get; set; }
+
+        public PlayerStats(string name, int totalMatchesPlayed, int totalMatchesWon, string encodedServers, 
+            string encodedModes, double averageScoreboardPercent, DateTime lastMatchPlayed, int totalKills, int totalDeaths)
+        {
+            Name = name;
+            TotalMatchesPlayed = totalMatchesPlayed;
+            TotalMatchesWon = totalMatchesWon;
+            playedServers = Extensions.DecodeElements(encodedServers);
+            playedModes = Extensions.DecodeElements(encodedModes);
+            AverageScoreboardPercent = averageScoreboardPercent;
+            LastMatchPlayed = lastMatchPlayed;
+            KillToDeathRatio = (double) totalKills / totalDeaths;
+        }
+
         public string Serialize(params Field[] fields)
         {
             return Serialize(this, fields.Select(field => field.ToString()).ToArray());
+        }
+
+        public void CalculateAverageData(DateTime firstMatchDate, DateTime lastMatchDate)
+        {
+            AverageMatchesPerDay = Extensions.CalculateAverage(TotalMatchesPlayed, firstMatchDate, lastMatchDate);
         }
     }
 }

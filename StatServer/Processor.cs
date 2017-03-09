@@ -23,27 +23,13 @@ namespace StatServer
         private readonly Regex popularServersPath = new Regex(@"^/reports/popular_servers(?<count>/-{0,1}\d{1})?$", RegexOptions.Compiled);
         private readonly Dictionary<Regex, Func<HttpRequest, HttpResponse>> MethodByPattern;
 
-        private DateTime lastDate { get; set; }
-
-        private Dictionary<string, int> players;
-        private readonly Dictionary<string, int> gameServers;
-        private readonly Dictionary<GameMatchResult, int> gameMatches;
-        private readonly Dictionary<string, DateTime> gameServersFirstMatchDate;
-        private readonly Dictionary<string, DateTime> playersFirstMatchDate;
-        //private Dictionary<int, Dictionary<int, int>> playersGameServers;
-        private readonly Dictionary<string, int> gameServersStats;
+        private readonly Cache cache;
         private readonly Database database;
 
         public Processor()
         {
             database = new Database();
-            players = new Dictionary<string, int>();
-            gameMatches = database.CreateGameMatchDictionary();
-            gameServers = database.CreateGameServersDictionary();
-            gameServersStats = database.CreateGameServersStatsDictionary();
-            gameServersFirstMatchDate = database.CreateGameServersFirstMatchDate();
-            playersFirstMatchDate = database.CreatePlayersFirstMatchDate();
-            //playersGameServers = new Dictionary<int, Dictionary<int, int>>();
+            cache = database.CreateCache();
             MethodByPattern = CreateMethodByPattern();
         }
 
@@ -80,20 +66,20 @@ namespace StatServer
 
         public HttpResponse HandleGameServerInformationRequest(HttpRequest request)
         {
-            var endpoint = gameServerInfoPath.Match(request.Uri).Groups["gameServerId"].ToString();
+            var gameServerId = gameServerInfoPath.Match(request.Uri).Groups["gameServerId"].ToString();
             if (request.Method == HttpMethod.Put)
             {
                 var info = JsonConvert.DeserializeObject<GameServerInfo>(request.Json);
-                database.InsertServerInformation(info, endpoint);
-                gameServers[endpoint] = database.GetRowsCount(Database.Table.ServersInformation);
+                database.InsertServerInformation(info, gameServerId);
+                cache.gameServers[gameServerId] = database.GetRowsCount(Database.Table.ServersInformation);
                 return new HttpResponse(HttpResponse.Answer.OK);
             }
 
             if (request.Method == HttpMethod.Get)
             {
-                if (!gameServers.ContainsKey(endpoint))
+                if (!cache.gameServers.ContainsKey(gameServerId))
                     return new HttpResponse(HttpResponse.Answer.NotFound);
-                var info = database.GetServerInformation(gameServers[endpoint]);
+                var info = database.GetServerInformation(cache.gameServers[gameServerId]);
                 return new HttpResponse(HttpResponse.Answer.OK, JsonConvert.SerializeObject(info, Formatting.Indented, Serializable.Settings));
             }
 
@@ -102,33 +88,40 @@ namespace StatServer
 
         private void UpdateLastDate(DateTime date)
         {
-            if (lastDate == default(DateTime) || date > lastDate)
-                lastDate = date;
+            if (cache.lastMatchDate == default(DateTime) || date > cache.lastMatchDate)
+                cache.lastMatchDate = date;
         }
 
         public HttpResponse HandleGameMatchStatsRequest(HttpRequest request)
         {
-            var endpoint = gameMatchStatsPath.Match(request.Uri).Groups["gameServerId"].ToString();
+            var gameServerId = gameMatchStatsPath.Match(request.Uri).Groups["gameServerId"].ToString();
             var timestamp = gameMatchStatsPath.Match(request.Uri).Groups["timestamp"].ToString();
-            if (!gameServers.ContainsKey(endpoint))
+            if (!cache.gameServers.ContainsKey(gameServerId))
                 return new HttpResponse(HttpResponse.Answer.BadRequest);
             var date = Extensions.ParseTimestamp(timestamp);
-            var matchInfo = new GameMatchResult(endpoint, timestamp);
+            var matchInfo = new GameMatchResult(gameServerId, timestamp);
             if (request.Method == HttpMethod.Put)
             {
                 UpdateLastDate(date);
                 var matchStats = JsonConvert.DeserializeObject<GameMatchStats>(request.Json);
                 matchInfo.Results = matchStats;
                 database.InsertGameMatchStats(matchInfo);
-                gameMatches[matchInfo] = database.GetRowsCount(Database.Table.GameMatchStats);
+                cache.gameMatches[matchInfo] = database.GetRowsCount(Database.Table.GameMatchStats);
+                var gameServerMatches = cache.gameServersMatchesPerDay[gameServerId];
+                gameServerMatches[date] = gameServerMatches.ContainsKey(date) ? gameServerMatches[date] + 1 : 1;
+                foreach (var player in matchStats.Scoreboard)
+                {
+                    var playerMatches = cache.playersMatchesPerDay[player.Name];
+                    playerMatches[date] = playerMatches.ContainsKey(date) ? playerMatches[date] + 1 : 1;
+                }
                 return new HttpResponse(HttpResponse.Answer.OK);
             }
 
             if (request.Method == HttpMethod.Get)
             {
-                if (!gameMatches.ContainsKey(matchInfo))
+                if (!cache.gameMatches.ContainsKey(matchInfo))
                     return new HttpResponse(HttpResponse.Answer.NotFound);
-                var stats = database.GetGameMatchStats(gameMatches[matchInfo]);
+                var stats = database.GetGameMatchStats(cache.gameMatches[matchInfo]);
                 var json = JsonConvert.SerializeObject(stats, Formatting.Indented, Serializable.Settings);
                 return new HttpResponse(HttpResponse.Answer.OK, json);
             }
@@ -136,13 +129,13 @@ namespace StatServer
             return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
         }
 
-        private void AddOrUpdateGameServerStats(string endpoint, DateTime timestamp, GameMatchStats stats)
+        private void AddOrUpdateGameServerStats(string gameServerId, DateTime timestamp, GameMatchStats stats)
         {
             //if (!gameServersStats.ContainsKey())
             throw new NotImplementedException();
         }
 
-        private void AddOrUpdatePlayersStats(string endpoint, DateTime timestamp, GameMatchStats stats)
+        private void AddOrUpdatePlayersStats(string gameServerId, DateTime timestamp, GameMatchStats stats)
         {
             throw new NotImplementedException();
         }
@@ -161,8 +154,32 @@ namespace StatServer
             if (request.Method != HttpMethod.Get)
                 return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
             var name = HttpUtility.UrlDecode(playerStatsPath.Match(request.Uri).Groups["playerName"].ToString());
-            
-            throw new NotImplementedException();
+            if (!cache.players.ContainsKey(name))
+                return new HttpResponse(HttpResponse.Answer.NotFound);
+            var stats = database.GetPlayerStats(cache.players[name]);
+            stats.CalculateAverageData(cache.playersFirstMatchDate[name], cache.lastMatchDate);
+            var json = stats.Serialize(PlayerStats.Field.TotalMatchesPlayed, PlayerStats.Field.TotalMatchesWon,
+                PlayerStats.Field.FavoriteServer, PlayerStats.Field.UniqueServers, PlayerStats.Field.FavoriteGameMode,
+                PlayerStats.Field.AverageScoreboardPercent, PlayerStats.Field.MaximumMatchesPerDay,
+                PlayerStats.Field.AverageMatchesPerDay, PlayerStats.Field.LastMatchPlayed,
+                PlayerStats.Field.KillToDeathRatio);
+            return new HttpResponse(HttpResponse.Answer.OK, json);
+        }
+
+        public HttpResponse HandleGameServerStatsRequest(HttpRequest request)
+        {
+            if (request.Method != HttpMethod.Get)
+                return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+            var gameServerId = gameServerStatsPath.Match(request.Uri).Groups["gameServerId"].ToString();
+            if (!cache.gameServersStats.ContainsKey(gameServerId))
+                return new HttpResponse(HttpResponse.Answer.NotFound);
+            var stats = database.GetGameServerStats(cache.gameServersStats[gameServerId]);
+            stats.CalculateAverageData(cache.gameServersFirstMatchDate[gameServerId], cache.lastMatchDate);
+            var json = stats.Serialize(GameServerStats.Field.TotalMatchesPlayed,
+                GameServerStats.Field.MaximumMatchesPerDay, GameServerStats.Field.AverageMatchesPerDay,
+                GameServerStats.Field.MaximumPopulation, GameServerStats.Field.AveragePopulation,
+                GameServerStats.Field.Top5GameModes, GameServerStats.Field.Top5Maps);
+            return new HttpResponse(HttpResponse.Answer.OK, json);
         }
 
         public HttpResponse HandleRecentMatchesRequest(HttpRequest request)
@@ -184,21 +201,6 @@ namespace StatServer
             if (request.Method != HttpMethod.Get)
                 return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
             throw new NotImplementedException();
-        }
-
-        public HttpResponse HandleGameServerStatsRequest(HttpRequest request)
-        {
-            if (request.Method != HttpMethod.Get)
-                return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
-            var endpoint = gameServerStatsPath.Match(request.Uri).Groups["gameServerId"].ToString();
-            if (!gameServersStats.ContainsKey(endpoint))
-                return new HttpResponse(HttpResponse.Answer.NotFound);
-            var stats = database.GetGameServerStats(gameServersStats[endpoint]);
-            var json = stats.Serialize(GameServerStats.Field.TotalMatchesPlayed,
-                GameServerStats.Field.MaximumMatchesPerDay, GameServerStats.Field.AverageMatchesPerDay,
-                GameServerStats.Field.MaximumPopulation, GameServerStats.Field.AveragePopulation,
-                GameServerStats.Field.Top5GameModes, GameServerStats.Field.Top5Maps);
-            return new HttpResponse(HttpResponse.Answer.OK, json);
         }
 
         private static int AdjustCount(int count)

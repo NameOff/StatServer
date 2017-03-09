@@ -90,6 +90,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Cache.cs" />
     <Compile Include="Database.cs" />
     <Compile Include="EntryPoint.cs" />
     <Compile Include="Extensions.cs" />

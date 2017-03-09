@@ -35,34 +35,16 @@ namespace StatServer
             TotalMatchesPlayed = totalMatchesPlayed;
             MaximumMatchesPerDay = maximumMatchesPerDay;
             MaximumPopulation = maximumPopulation;
-            PlayedGameModes = DecodeElements(encodedGameModes);
-            PlayedMaps = DecodeElements(encodedMaps);
+            PlayedGameModes = Extensions.DecodeElements(encodedGameModes);
+            PlayedMaps = Extensions.DecodeElements(encodedMaps);
             Top5Maps = GetTop5(PlayedMaps);
             Top5GameModes = GetTop5(PlayedGameModes);
         }
 
-        private static double CalculateAverage(int count, DateTime firstMatchDate, DateTime lastMatchDate)
-        {
-            return (double)count / (Math.Abs((firstMatchDate.Date - lastMatchDate.Date).Days) + 1);
-        }
-
         public void CalculateAverageData(DateTime firstMatchDate, DateTime lastMatchDate)
         {
-            AverageMatchesPerDay = CalculateAverage(MaximumMatchesPerDay, firstMatchDate, lastMatchDate);
-            AveragePopulation = CalculateAverage(MaximumPopulation, firstMatchDate, lastMatchDate);
-        }
-
-        private Dictionary<string, int> DecodeElements(string encoded)
-        {
-            var elements = new Dictionary<string, int>();
-            foreach (var data in encoded.Split(','))
-            {
-                var splitted = data.Split(':');
-                var elem = splitted[0];
-                var count = int.Parse(splitted[1]);
-                elements[elem] = count;
-            }
-            return elements;
+            AverageMatchesPerDay = Extensions.CalculateAverage(MaximumMatchesPerDay, firstMatchDate, lastMatchDate);
+            AveragePopulation = Extensions.CalculateAverage(MaximumPopulation, firstMatchDate, lastMatchDate);
         }
 
         private string[] GetTop5(Dictionary<string, int> played)
@@ -73,21 +55,14 @@ namespace StatServer
                 .ToArray();
         }
 
-        private static string EncodePlayedElements(Dictionary<string, int> played)
-        {
-            var data = played.Keys
-                .Select(key => $"{key}:{played[key]}");
-            return string.Join("", data);
-        }
-
         public string EncodeGameModes()
         {
-            return EncodePlayedElements(PlayedGameModes);
+            return Extensions.EncodeElements(PlayedGameModes);
         }
 
         public string EncodeMaps()
         {
-            return EncodePlayedElements(PlayedMaps);
+            return Extensions.EncodeElements(PlayedMaps);
         }
 
         public string Serialize(params Field[] fields)
