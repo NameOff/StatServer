@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 
@@ -20,8 +19,8 @@ namespace StatServer
             PlayersStats
         }
 
-        private Dictionary<Table, string[]> tableFields;
-        private Dictionary<Table, int> tableRowsCount;
+        private readonly Dictionary<Table, string[]> tableFields;
+        private readonly Dictionary<Table, int> tableRowsCount;
 
         public Database()
         {
@@ -33,8 +32,8 @@ namespace StatServer
                 [Table.GameMatchStats] = new[] { "map", "game_mode", "frag_limit", "time_limit",
                     "time_elapsed", "scoreboard", "server", "timestamp" },
                 [Table.GameServersStats] = new[] { "endpoint", "name" , "total_matches_played",
-                    "maximum_matches_per_day", "maximum_population", "game_modes", "maps" },
-                [Table.PlayersStats] = new[] { "total_matches_played", "total_matches_won", "servers",
+                    "maximum_matches_per_day", "maximum_population", "total_population", "game_modes", "maps" },
+                [Table.PlayersStats] = new[] { "name", "total_matches_played", "total_matches_won", "servers",
                     "game_modes", "average_scoreboard_percent", "last_match_played", "total_kills", "total_deaths" }
             };
             tableRowsCount = new Dictionary<Table, int>();
@@ -225,20 +224,22 @@ namespace StatServer
                         'total_matches_played' INTEGER,
                         'maximum_matches_per_day' INTEGER,
                         'maximum_population' INTEGER,
+                        'total_population' INTEGER,
                         'game_modes' TEXT NOT NULL,
                         'maps' TEXT NOT NULL
                     )",
                 @"CREATE TABLE 'PlayersStats'
                     (
                         'id' INTEGER PRIMARY KEY AUTOINCREMENT,
+                        'name' TEXT NOT NULL,
                         'total_matches_played' INTEGER,
                         'total_matches_won' INTEGER,
                         'servers' TEXT NOT NULL,
                         'game_modes' TEXT NOT NULL,
                         'average_scoreboard_percent' REAL,
-                        'last_match_played' TEXT,
-                        'total_kills',
-                        'total_deaths'
+                        'last_match_played' TEXT NOT NULL,
+                        'total_kills' INTEGER,
+                        'total_deaths' INTEGER
                     )"
             };
             ExecuteQuery(commands);
@@ -261,20 +262,10 @@ namespace StatServer
         {
             var fields = string.Join(", ", tableFields[table]);
             for (var i = 0; i < values.Length; i++)
-                values[i] = ObjectToString(values[i]);
+                values[i] = Extensions.ObjectToString(values[i]);
             var valuesString = string.Join(", ", values);
 
             return Tuple.Create(fields, valuesString);
-        }
-
-        private string ObjectToString(object obj)
-        {
-            var nfi = new NumberFormatInfo { NumberDecimalSeparator = "." };
-            if (obj is string || obj is DateTime)
-                return $"'{obj}'";
-            if (obj is double)
-                return ((double)obj).ToString(nfi);
-            return obj.ToString();
         }
 
         private void InsertInto(Table table, params object[] values)
@@ -347,19 +338,22 @@ namespace StatServer
         {
             var row = GetTableRowById(Table.GameServersStats, id);
             return new GameServerStats(row[1], row[2], int.Parse(row[3]),
-                int.Parse(row[4]), int.Parse(row[5]), row[6], row[7]);
+                int.Parse(row[4]), int.Parse(row[5]), int.Parse(row[6]), row[7], row[8]);
         }
 
         public PlayerStats GetPlayerStats(int id)
         {
             var row = GetTableRowById(Table.PlayersStats, id);
+            return new PlayerStats(row[1], int.Parse(row[2]), int.Parse(row[3]), row[4], row[5],
+                double.Parse(row[6]), Extensions.ParseTimestamp(row[7]), int.Parse(row[8]), int.Parse(row[9]));
         }
 
         public GameMatchStats GetGameMatchStats(int id)
         {
             var data = GetTableRowById(Table.GameMatchStats, id);
             var scoreboard = GetPlayerInfo(ParseIds(data[6]));
-            return new GameMatchStats(data[1], data[2], int.Parse(data[3]), int.Parse(data[4]), double.Parse(data[5]), scoreboard);
+            return new GameMatchStats(data[1], data[2], int.Parse(data[3]), 
+                int.Parse(data[4]), double.Parse(data[5]), scoreboard);
         }
 
         private IEnumerable<int> ParseIds(string ids)

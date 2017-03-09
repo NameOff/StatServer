@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -36,6 +37,16 @@ namespace StatServer
                 elements[elem] = count;
             }
             return elements;
+        }
+
+        public static string ObjectToString(object obj)
+        {
+            var nfi = new NumberFormatInfo { NumberDecimalSeparator = "." };
+            if (obj is string || obj is DateTime)
+                return $"'{obj}'";
+            if (obj is double)
+                return ((double)obj).ToString(nfi);
+            return obj.ToString();
         }
     }
 }
