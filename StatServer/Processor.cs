@@ -72,8 +72,15 @@ namespace StatServer
                 if (request.Method == HttpMethod.Put)
                 {
                     var info = JsonConvert.DeserializeObject<GameServerInfo>(request.Json);
-                    database.InsertServerInformation(info, gameServerId);
-                    cache.gameServersInformation[gameServerId] = database.GetRowsCount(Database.Table.ServersInformation);
+                    if (cache.gameServersInformation.ContainsKey(gameServerId))
+                        database.UpdateGameServerInfo(cache.gameServersInformation[gameServerId], info, gameServerId);
+                    else
+                    {
+                        var id = database.InsertServerInformation(info, gameServerId);
+                        cache.gameServersInformation[gameServerId] = id;
+                        var statsId = database.InsertGameServerStats(new GameServerStats(gameServerId, info.Name));
+                        cache.gameServersStats[gameServerId] = statsId;
+                    }
                     return new HttpResponse(HttpResponse.Answer.OK);
                 }
 
@@ -187,7 +194,8 @@ namespace StatServer
             if (!cache.players.ContainsKey(name))
                 return new HttpResponse(HttpResponse.Answer.NotFound);
             var stats = database.GetPlayerStats(cache.players[name]);
-            stats.CalculateAverageData(cache.playersFirstMatchDate[name], cache.lastMatchDate);
+            if (cache.playersFirstMatchDate.ContainsKey(name))
+                stats.CalculateAverageData(cache.playersFirstMatchDate[name], cache.lastMatchDate);
             var json = stats.Serialize(PlayerStats.Field.TotalMatchesPlayed, PlayerStats.Field.TotalMatchesWon,
                 PlayerStats.Field.FavoriteServer, PlayerStats.Field.UniqueServers, PlayerStats.Field.FavoriteGameMode,
                 PlayerStats.Field.AverageScoreboardPercent, PlayerStats.Field.MaximumMatchesPerDay,
@@ -204,7 +212,8 @@ namespace StatServer
             if (!cache.gameServersStats.ContainsKey(gameServerId))
                 return new HttpResponse(HttpResponse.Answer.NotFound);
             var stats = database.GetGameServerStats(cache.gameServersStats[gameServerId]);
-            stats.CalculateAverageData(cache.gameServersFirstMatchDate[gameServerId], cache.lastMatchDate);
+            if (cache.gameServersFirstMatchDate.ContainsKey(gameServerId))
+                stats.CalculateAverageData(cache.gameServersFirstMatchDate[gameServerId], cache.lastMatchDate);
             var json = stats.Serialize(GameServerStats.Field.TotalMatchesPlayed,
                 GameServerStats.Field.MaximumMatchesPerDay, GameServerStats.Field.AverageMatchesPerDay,
                 GameServerStats.Field.MaximumPopulation, GameServerStats.Field.AveragePopulation,

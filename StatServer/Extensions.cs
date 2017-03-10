@@ -28,6 +28,8 @@ namespace StatServer
 
         public static Dictionary<string, int> DecodeElements(string encoded)
         {
+            if (encoded.Length == 0)
+                return new Dictionary<string, int>();
             var elements = new Dictionary<string, int>();
             foreach (var data in encoded.Split(','))
             {

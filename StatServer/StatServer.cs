@@ -46,6 +46,8 @@ namespace StatServer
                 response = processor.HandleRequest(new HttpRequest(HttpMethod.Get, context.Request.RawUrl));
             }
 
+            Console.WriteLine(context.Request.UserHostName);
+
             SendMessage(context, response);
         }
 

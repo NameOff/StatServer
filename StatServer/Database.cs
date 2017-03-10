@@ -32,7 +32,7 @@ namespace StatServer
                 [Table.GameMatchStats] = new[] { "map", "game_mode", "frag_limit", "time_limit",
                     "time_elapsed", "scoreboard", "server", "timestamp" },
                 [Table.GameServersStats] = new[] { "endpoint", "name" , "total_matches_played",
-                    "maximum_matches_per_day", "maximum_population", "total_population", "game_modes", "maps" },
+                    "maximum_population", "total_population", "game_modes", "maps" },
                 [Table.PlayersStats] = new[] { "name", "total_matches_played", "total_matches_won", "servers",
                     "game_modes", "average_scoreboard_percent", "last_match_played", "total_kills", "total_deaths" }
             };
@@ -95,6 +95,10 @@ namespace StatServer
         public void SetDateTimeDictionaries(Cache cache)
         {
             var rows = GetAllRows(Table.GameMatchStats);
+            cache.gameServersFirstMatchDate = new Dictionary<string, DateTime>();
+            cache.gameServersMatchesPerDay = new Dictionary<string, Dictionary<DateTime, int>>();
+            cache.playersFirstMatchDate = new Dictionary<string, DateTime>();
+            cache.playersMatchesPerDay = new Dictionary<string, Dictionary<DateTime, int>>();
             foreach (var row in rows)
             {
                 var server = row[7];
@@ -113,7 +117,7 @@ namespace StatServer
                     playerMatches[date] = playerMatches.ContainsKey(date) ? playerMatches[date] + 1 : 1;
                 }
                 if (!cache.gameServersMatchesPerDay.ContainsKey(server))
-                    cache.gameServersMatchesPerDay = new Dictionary<string, Dictionary<DateTime, int>>();
+                    cache.gameServersMatchesPerDay[server] = new Dictionary<DateTime, int>();
                 var gameServerMatches = cache.gameServersMatchesPerDay[server];
                 gameServerMatches[date] = gameServerMatches.ContainsKey(date) ? gameServerMatches[date] + 1 : 1;
             }
@@ -264,7 +268,7 @@ namespace StatServer
 
         private string CreateUpdateQuery(Table table, int id, params Tuple<string, object>[] newValues)
         {
-            var fields = newValues.Select(tuple => $"{tuple.Item1} = {tuple.Item2}");
+            var fields = newValues.Select(tuple => $"{tuple.Item1} = {Extensions.ObjectToString(tuple.Item2)}");
             return $"UPDATE {table} SET {string.Join(", ", fields)} WHERE id = {id}";
         }
 
@@ -308,6 +312,18 @@ namespace StatServer
                 Tuple.Create("maps", (object) Extensions.EncodeElements(stats.PlayedMaps))
             };
             var cmd = CreateUpdateQuery(Table.GameServersStats, id, fields);
+            ExecuteQuery(cmd);
+        }
+
+        public void UpdateGameServerInfo(int id, GameServerInfo info, string endpoint)
+        {
+            var fields = new[]
+            {
+                Tuple.Create("name", (object) info.Name),
+                Tuple.Create("game_modes", (object) string.Join(", ", info.GameModes)),
+                Tuple.Create("endpoint", (object) endpoint)
+            };
+            var cmd = CreateUpdateQuery(Table.ServersInformation, id, fields);
             ExecuteQuery(cmd);
         }
 
