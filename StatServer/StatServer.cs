@@ -13,6 +13,8 @@ namespace StatServer
 
         private readonly Processor processor;
 
+        public const int ThreadsCount = 10;
+
         public StatServer()
         {
             listener = new HttpListener();

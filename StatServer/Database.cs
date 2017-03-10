@@ -262,9 +262,10 @@ namespace StatServer
             return $"INSERT INTO {table} ({fieldsAndValues.Item1}) VALUES ({fieldsAndValues.Item2});";
         }
 
-        private string CreateUpdateQuery(Table table, int id, string field, object newValue)
+        private string CreateUpdateQuery(Table table, int id, params Tuple<string, object>[] newValues)
         {
-            return $"UPDATE {table} SET {field} = {newValue} WHERE id = {id}";
+            var fields = newValues.Select(tuple => $"{tuple.Item1} = {tuple.Item2}");
+            return $"UPDATE {table} SET {string.Join(", ", fields)} WHERE id = {id}";
         }
 
         private Tuple<string, string> FieldsAndValuesToString(Table table, params object[] values)
@@ -277,6 +278,39 @@ namespace StatServer
             return Tuple.Create(fields, valuesString);
         }
 
+        public void UpdatePlayerStats(int id, PlayerStats stats)
+        {
+            var fields = new[]
+            {
+                Tuple.Create("name", (object)stats.Name), Tuple.Create("total_matches_played", (object)stats.TotalMatchesPlayed),
+                Tuple.Create("total_matches_won", (object)stats.TotalMatchesWon),
+                Tuple.Create("servers", (object)Extensions.EncodeElements(stats.PlayedServers)),
+                Tuple.Create("game_modes", (object)Extensions.EncodeElements(stats.PlayedModes)),
+                Tuple.Create("average_scoreboard_percent", (object)stats.AverageScoreboardPercent),
+                Tuple.Create("last_match_played", (object)stats.LastMatchPlayed),
+                Tuple.Create("total_kills", (object)stats.TotalKills),
+                Tuple.Create("total_deaths", (object)stats.TotalDeaths)
+            };
+            var cmd = CreateUpdateQuery(Table.PlayersStats, id, fields);
+            ExecuteQuery(cmd);
+        }
+
+        public void UpdateGameServerStats(int id, GameServerStats stats)
+        {
+            var fields = new[]
+            {
+                Tuple.Create("endpoint", (object) stats.Endpoint), Tuple.Create("name", (object) stats.Name),
+                Tuple.Create("total_matches_played", (object) stats.TotalMatchesPlayed),
+                Tuple.Create("maximum_matches_per_day", (object) stats.MaximumMatchesPerDay),
+                Tuple.Create("maximum_population", (object) stats.MaximumPopulation),
+                Tuple.Create("total_population", (object) stats.TotalPopulation),
+                Tuple.Create("game_modes", (object) Extensions.EncodeElements(stats.PlayedGameModes)),
+                Tuple.Create("maps", (object) Extensions.EncodeElements(stats.PlayedMaps))
+            };
+            var cmd = CreateUpdateQuery(Table.GameServersStats, id, fields);
+            ExecuteQuery(cmd);
+        }
+
         private void InsertInto(Table table, params object[] values)
         {
             var command = CreateInsertQuery(table, values);
@@ -284,9 +318,10 @@ namespace StatServer
             tableRowsCount[table]++;
         }
 
-        public void InsertServerInformation(GameServerInfo info, string endpoint)
+        public int InsertServerInformation(GameServerInfo info, string endpoint)
         {
             InsertInto(Table.ServersInformation, info.Name, info.EncodeGameModes(), endpoint);
+            return tableRowsCount[Table.ServersInformation];
         }
 
         public Dictionary<string, int> CreateGameServersDictionary()
@@ -325,7 +360,7 @@ namespace StatServer
                 yield return new GameServerInfoResponse(row[3], new GameServerInfo(row[1], row[2]));
         }
 
-        public void InsertGameMatchStats(GameMatchResult info)
+        public int InsertGameMatchStats(GameMatchResult info)
         {
             var indeces = new int[info.Results.Scoreboard.Length];
             for (var i = 0; i < info.Results.Scoreboard.Length; i++)
@@ -335,6 +370,7 @@ namespace StatServer
             }
             InsertInto(Table.GameMatchStats, info.Results.Map, info.Results.GameMode, info.Results.FragLimit,
                 info.Results.TimeLimit, info.Results.TimeElapsed, string.Join(", ", indeces), info.Server, info.Timestamp);
+            return tableRowsCount[Table.GameMatchStats];
         }
 
         private PlayerInfo GetPlayerInformation(int id)
@@ -343,11 +379,12 @@ namespace StatServer
             return new PlayerInfo(data[1], int.Parse(data[2]), int.Parse(data[3]), int.Parse(data[4]));
         }
 
-        public void InsertGameServerStats(GameServerStats stats)
+        public int InsertGameServerStats(GameServerStats stats)
         {
             InsertInto(Table.GameServersStats, stats.Endpoint, stats.Name, stats.TotalMatchesPlayed, 
                 stats.MaximumPopulation, stats.TotalPopulation, Extensions.EncodeElements(stats.PlayedGameModes), 
                 Extensions.EncodeElements(stats.PlayedMaps));
+            return tableRowsCount[Table.GameServersStats];
         }
 
         public GameServerStats GetGameServerStats(int id)
@@ -360,15 +397,17 @@ namespace StatServer
         public PlayerStats GetPlayerStats(int id)
         {
             var row = GetTableRowById(Table.PlayersStats, id);
-            return new PlayerStats(row[1], int.Parse(row[2]), int.Parse(row[3]), row[4], row[5],
+            return new PlayerStats(row[1], int.Parse(row[2]), int.Parse(row[3]), 
+                Extensions.DecodeElements(row[4]), Extensions.DecodeElements(row[5]),
                 double.Parse(row[6]), Extensions.ParseTimestamp(row[7]), int.Parse(row[8]), int.Parse(row[9]));
         }
 
-        public void InsertPlayerStats(PlayerStats stats)
+        public int InsertPlayerStats(PlayerStats stats)
         {
             InsertInto(Table.PlayersStats, stats.Name, stats.TotalMatchesPlayed, stats.TotalMatchesWon,
                 Extensions.EncodeElements(stats.PlayedServers), Extensions.EncodeElements(stats.PlayedModes),
                 stats.AverageScoreboardPercent, stats.LastMatchPlayed, stats.TotalKills, stats.TotalDeaths);
+            return tableRowsCount[Table.PlayersStats];
         }
 
         public GameMatchStats GetGameMatchStats(int id)

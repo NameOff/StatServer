@@ -31,14 +31,15 @@ namespace StatServer
         public Dictionary<string, int> PlayedModes { get; }
         public Dictionary<string, int> PlayedServers { get; }
 
-        public PlayerStats(string name, int totalMatchesPlayed, int totalMatchesWon, string encodedServers,
-            string encodedModes, double averageScoreboardPercent, DateTime lastMatchPlayed, int totalKills, int totalDeaths)
+        public PlayerStats(string name, int totalMatchesPlayed, int totalMatchesWon, Dictionary<string, int> servers,
+            Dictionary<string, int> modes, double averageScoreboardPercent, 
+            DateTime lastMatchPlayed, int totalKills, int totalDeaths)
         {
             Name = name;
             TotalMatchesPlayed = totalMatchesPlayed;
             TotalMatchesWon = totalMatchesWon;
-            PlayedServers = Extensions.DecodeElements(encodedServers);
-            PlayedModes = Extensions.DecodeElements(encodedModes);
+            PlayedServers = servers;
+            PlayedModes = modes;
             AverageScoreboardPercent = averageScoreboardPercent;
             LastMatchPlayed = lastMatchPlayed;
             TotalKills = totalKills;
