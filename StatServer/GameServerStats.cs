@@ -59,9 +59,7 @@ namespace StatServer
         public void Update(GameMatchResult match, Dictionary<DateTime, int> matchesPerDay)
         {
             TotalMatchesPlayed++;
-            var date = match.Timestamp;
-            matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
-            MaximumMatchesPerDay = matchesPerDay.Values.Max();
+            MaximumMatchesPerDay = matchesPerDay.Values.DefaultIfEmpty().Max();
             var population = match.Results.Scoreboard.Length;
             MaximumPopulation = MaximumPopulation < population ? population : MaximumPopulation;
             var mode = match.Results.GameMode;

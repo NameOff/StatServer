@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace StatServer
 {
@@ -44,8 +42,11 @@ namespace StatServer
         public static string ObjectToString(object obj)
         {
             var nfi = new NumberFormatInfo { NumberDecimalSeparator = "." };
-            if (obj is string || obj is DateTime)
+            if (obj is string)
                 return $"'{obj}'";
+            if (obj is DateTime)
+                return $"'{(DateTime) obj:s}Z'";
+
             if (obj is double)
                 return ((double)obj).ToString(nfi);
             return obj.ToString();

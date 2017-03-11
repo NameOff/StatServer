@@ -32,7 +32,17 @@ namespace StatServer
         private static void RunServer(Options options)
         {
             using (var server = new StatServer())
-                server.Start(options.Prefix);
+            {
+                try
+                {
+                    server.Start(options.Prefix);
+                }
+                catch (Exception e)
+                {
+                    server.processor.database.Connection.Close();
+                    throw e;
+                }
+            }
         }
 
         private class Options

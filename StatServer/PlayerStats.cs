@@ -87,7 +87,7 @@ namespace StatServer
             FavoriteGameMode = PlayedModes.Keys.OrderByDescending(key => PlayedModes[key]).First();
             UniqueServers = PlayedServers.Keys.Count;
             matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
-            MaximumMatchesPerDay = matchesPerDay.Values.Max();
+            MaximumMatchesPerDay = matchesPerDay.Values.DefaultIfEmpty().Max();
             var playerResult = match.Results.Scoreboard.First(info => info.Name == Name);
             TotalKills += playerResult.Kills;
             TotalDeaths += playerResult.Deaths;

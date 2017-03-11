@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Web.WebSockets;
 
 namespace StatServer
 {
@@ -12,6 +13,12 @@ namespace StatServer
         {
             Server = server;
             Timestamp = Extensions.ParseTimestamp(timestamp);
+        }
+
+        public GameMatchResult(string server, DateTime timestamp)
+        {
+            Server = server;
+            Timestamp = timestamp;
         }
 
         public GameMatchResult()

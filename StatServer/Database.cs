@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
@@ -21,6 +22,9 @@ namespace StatServer
 
         private readonly Dictionary<Table, string[]> tableFields;
         private readonly Dictionary<Table, int> tableRowsCount;
+        public SQLiteConnection Connection;
+
+
 
         public Database()
         {
@@ -36,6 +40,7 @@ namespace StatServer
                 [Table.PlayersStats] = new[] { "name", "total_matches_played", "total_matches_won", "servers",
                     "game_modes", "average_scoreboard_percent", "last_match_played", "total_kills", "total_deaths" }
             };
+
             tableRowsCount = new Dictionary<Table, int>();
             foreach (var table in (Table[])Enum.GetValues(typeof(Table)))
                 tableRowsCount[table] = CalculateTableRowsCount(table);
@@ -44,24 +49,16 @@ namespace StatServer
         private void Initialize()
         {
             if (File.Exists(DatabaseName))
+            {
+                Connection = new SQLiteConnection($"Data Source = {DatabaseName}; Version=3;");
+                Connection.Open();
                 return;
+            }
 
             SQLiteConnection.CreateFile(DatabaseName);
+            Connection = new SQLiteConnection($"Data Source = {DatabaseName}; Version=3;");
+            Connection.Open();
             CreateAllTables();
-        }
-
-        public Cache CreateCache()
-        {
-            var cache = new Cache
-            {
-                players = new Dictionary<string, int>(),
-                gameMatches = CreateGameMatchDictionary(),
-                gameServersInformation = CreateGameServersDictionary(),
-                gameServersStats = CreateGameServersStatsDictionary(),
-                playersStats = CreatePlayersStatsDictionary()
-            };
-            SetDateTimeDictionaries(cache);
-            return cache;
         }
 
         public Dictionary<string, int> CreatePlayersStatsDictionary()
@@ -75,12 +72,8 @@ namespace StatServer
 
         private void ExecuteQuery(params string[] commands)
         {
-            using (var connection = new SQLiteConnection($"Data Source = {DatabaseName}; Version=3;"))
-            {
-                connection.Open();
-                foreach (var command in commands)
-                    new SQLiteCommand(command, connection).ExecuteNonQuery();
-            }
+            foreach (var command in commands)
+                new SQLiteCommand(command, Connection).ExecuteNonQuery();
         }
 
         public Dictionary<string, int> CreateGameServersStatsDictionary()
@@ -95,32 +88,33 @@ namespace StatServer
         public void SetDateTimeDictionaries(Cache cache)
         {
             var rows = GetAllRows(Table.GameMatchStats);
-            cache.gameServersFirstMatchDate = new Dictionary<string, DateTime>();
-            cache.gameServersMatchesPerDay = new Dictionary<string, Dictionary<DateTime, int>>();
-            cache.playersFirstMatchDate = new Dictionary<string, DateTime>();
-            cache.playersMatchesPerDay = new Dictionary<string, Dictionary<DateTime, int>>();
             foreach (var row in rows)
             {
                 var server = row[7];
                 var date = Extensions.ParseTimestamp(row[8]);
-                if (!cache.gameServersFirstMatchDate.ContainsKey(server) || cache.gameServersFirstMatchDate[server] > date)
-                    cache.gameServersFirstMatchDate[server] = date;
+                var match = ParseGameMatchStats(row);
+                cache.RecentMatches.Add(new GameMatchResult(server, date) { Results = match });
+                if (cache.RecentMatches.Count >= cache.MaxCount * 10)
+                    cache.UpdateRecentMatches();
+                if (!cache.GameServersFirstMatchDate.ContainsKey(server) || cache.GameServersFirstMatchDate[server] > date)
+                    cache.GameServersFirstMatchDate[server] = date;
                 var ids = ParseIds(row[6]);
                 var players = GetPlayerInfo(ids);
                 foreach (var player in players)
                 {
-                    if (!cache.playersFirstMatchDate.ContainsKey(player.Name) || cache.playersFirstMatchDate[player.Name] > date)
-                        cache.playersFirstMatchDate[player.Name] = date;
-                    if (!cache.playersMatchesPerDay.ContainsKey(player.Name))
-                        cache.playersMatchesPerDay[player.Name] = new Dictionary<DateTime, int>();
-                    var playerMatches = cache.playersMatchesPerDay[player.Name];
+                    if (!cache.PlayersFirstMatchDate.ContainsKey(player.Name) || cache.PlayersFirstMatchDate[player.Name] > date)
+                        cache.PlayersFirstMatchDate[player.Name] = date;
+                    if (!cache.PlayersMatchesPerDay.ContainsKey(player.Name))
+                        cache.PlayersMatchesPerDay[player.Name] = new Dictionary<DateTime, int>();
+                    var playerMatches = cache.PlayersMatchesPerDay[player.Name];
                     playerMatches[date] = playerMatches.ContainsKey(date) ? playerMatches[date] + 1 : 1;
                 }
-                if (!cache.gameServersMatchesPerDay.ContainsKey(server))
-                    cache.gameServersMatchesPerDay[server] = new Dictionary<DateTime, int>();
-                var gameServerMatches = cache.gameServersMatchesPerDay[server];
+                if (!cache.GameServersMatchesPerDay.ContainsKey(server))
+                    cache.GameServersMatchesPerDay[server] = new Dictionary<DateTime, int>();
+                var gameServerMatches = cache.GameServersMatchesPerDay[server];
                 gameServerMatches[date] = gameServerMatches.ContainsKey(date) ? gameServerMatches[date] + 1 : 1;
             }
+            cache.UpdateRecentMatches();
         }
 
         public Dictionary<string, DateTime> CreatePlayersFirstMatchDate()
@@ -144,35 +138,29 @@ namespace StatServer
         private string[] GetTableRowById(Table table, int id)
         {
             var command = CreateSelectRowRequest(table, id);
-            using (var connection = new SQLiteConnection($"Data Source = {DatabaseName}; Version=3;"))
+            var cmd = new SQLiteCommand(command, Connection);
+            using (var reader = cmd.ExecuteReader())
             {
-                connection.Open();
-                var cmd = new SQLiteCommand(command, connection);
-                using (var reader = cmd.ExecuteReader())
-                {
-                    reader.Read();
-                    return GetValuesFrom(reader);
-                }
+                reader.Read();
+                return GetValuesFrom(reader);
             }
+
         }
 
         public IEnumerable<string[]> GetAllRows(Table table)
         {
-            using (var connection = new SQLiteConnection($"Data Source = {DatabaseName}; Version=3;"))
+            var rowsCount = GetRowsCount(table);
+            for (var id = 1; id <= rowsCount; id++)
             {
-                connection.Open();
-                var rowsCount = GetRowsCount(table);
-                for (var id = 1; id <= rowsCount; id++)
+                var command = CreateSelectRowRequest(table, id);
+                var cmd = new SQLiteCommand(command, Connection);
+                using (var reader = cmd.ExecuteReader())
                 {
-                    var command = CreateSelectRowRequest(table, id);
-                    var cmd = new SQLiteCommand(command, connection);
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        reader.Read();
-                        yield return GetValuesFrom(reader);
-                    }
+                    reader.Read();
+                    yield return GetValuesFrom(reader);
                 }
             }
+
         }
 
         private string CreateSelectRowRequest(Table table, int id) => $"SELECT * FROM {table} WHERE id = {id};";
@@ -192,11 +180,8 @@ namespace StatServer
         private int CalculateTableRowsCount(Table table)
         {
             var command = $"SELECT COUNT(id) FROM {table}";
-            using (var connection = new SQLiteConnection($"Data Source = {DatabaseName}; Version=3;"))
-            {
-                connection.Open();
-                return int.Parse(new SQLiteCommand(command, connection).ExecuteScalar().ToString());
-            }
+            return int.Parse(new SQLiteCommand(command, Connection).ExecuteScalar().ToString());
+
         }
 
         private void CreateAllTables()
@@ -305,7 +290,6 @@ namespace StatServer
             {
                 Tuple.Create("endpoint", (object) stats.Endpoint), Tuple.Create("name", (object) stats.Name),
                 Tuple.Create("total_matches_played", (object) stats.TotalMatchesPlayed),
-                Tuple.Create("maximum_matches_per_day", (object) stats.MaximumMatchesPerDay),
                 Tuple.Create("maximum_population", (object) stats.MaximumPopulation),
                 Tuple.Create("total_population", (object) stats.TotalPopulation),
                 Tuple.Create("game_modes", (object) Extensions.EncodeElements(stats.PlayedGameModes)),
@@ -397,8 +381,8 @@ namespace StatServer
 
         public int InsertGameServerStats(GameServerStats stats)
         {
-            InsertInto(Table.GameServersStats, stats.Endpoint, stats.Name, stats.TotalMatchesPlayed, 
-                stats.MaximumPopulation, stats.TotalPopulation, Extensions.EncodeElements(stats.PlayedGameModes), 
+            InsertInto(Table.GameServersStats, stats.Endpoint, stats.Name, stats.TotalMatchesPlayed,
+                stats.MaximumPopulation, stats.TotalPopulation, Extensions.EncodeElements(stats.PlayedGameModes),
                 Extensions.EncodeElements(stats.PlayedMaps));
             return tableRowsCount[Table.GameServersStats];
         }
@@ -413,7 +397,7 @@ namespace StatServer
         public PlayerStats GetPlayerStats(int id)
         {
             var row = GetTableRowById(Table.PlayersStats, id);
-            return new PlayerStats(row[1], int.Parse(row[2]), int.Parse(row[3]), 
+            return new PlayerStats(row[1], int.Parse(row[2]), int.Parse(row[3]),
                 Extensions.DecodeElements(row[4]), Extensions.DecodeElements(row[5]),
                 double.Parse(row[6]), Extensions.ParseTimestamp(row[7]), int.Parse(row[8]), int.Parse(row[9]));
         }
@@ -429,8 +413,13 @@ namespace StatServer
         public GameMatchStats GetGameMatchStats(int id)
         {
             var data = GetTableRowById(Table.GameMatchStats, id);
+            return ParseGameMatchStats(data);
+        }
+
+        private GameMatchStats ParseGameMatchStats(string[] data)
+        {
             var scoreboard = GetPlayerInfo(ParseIds(data[6]));
-            return new GameMatchStats(data[1], data[2], int.Parse(data[3]), 
+            return new GameMatchStats(data[1], data[2], int.Parse(data[3]),
                 int.Parse(data[4]), double.Parse(data[5]), scoreboard);
         }
 

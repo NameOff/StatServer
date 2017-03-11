@@ -8,16 +8,43 @@ namespace StatServer
 {
     public class Cache
     {
-        public DateTime lastMatchDate { get; set; }
+        public DateTime LastMatchDate { get; set; }
 
-        public Dictionary<string, int> players { get; set; }
-        public Dictionary<string, int> gameServersInformation { get; set; }
-        public Dictionary<GameMatchResult, int> gameMatches { get; set; }
-        public Dictionary<string, DateTime> gameServersFirstMatchDate { get; set; }
-        public Dictionary<string, DateTime> playersFirstMatchDate { get; set; }
-        public Dictionary<string, int> gameServersStats { get; set; }
-        public Dictionary<string, int> playersStats { get; set; }
-        public Dictionary<string, Dictionary<DateTime, int>> gameServersMatchesPerDay { get; set; }
-        public Dictionary<string, Dictionary<DateTime, int>> playersMatchesPerDay { get; set; }
+        public Dictionary<string, int> Players { get; set; }
+        public Dictionary<string, int> GameServersInformation { get; set; }
+        public Dictionary<GameMatchResult, int> GameMatches { get; set; }
+        public Dictionary<string, DateTime> GameServersFirstMatchDate { get; set; }
+        public Dictionary<string, DateTime> PlayersFirstMatchDate { get; set; }
+        public Dictionary<string, int> GameServersStats { get; set; }
+        public Dictionary<string, int> PlayersStats { get; set; }
+        public Dictionary<string, Dictionary<DateTime, int>> GameServersMatchesPerDay { get; set; }
+        public Dictionary<string, Dictionary<DateTime, int>> PlayersMatchesPerDay { get; set; }
+        public List<GameMatchResult> RecentMatches { get; set; }
+
+        public readonly int MaxCount;
+
+        public Cache(Database database, int maxCount)
+        {
+            MaxCount = maxCount;
+            Players = new Dictionary<string, int>();
+            GameMatches = database.CreateGameMatchDictionary();
+            GameServersInformation = database.CreateGameServersDictionary();
+            GameServersStats = database.CreateGameServersStatsDictionary();
+            PlayersStats = database.CreatePlayersStatsDictionary();
+            GameServersFirstMatchDate = new Dictionary<string, DateTime>();
+            GameServersMatchesPerDay = new Dictionary<string, Dictionary<DateTime, int>>();
+            PlayersFirstMatchDate = new Dictionary<string, DateTime>();
+            PlayersMatchesPerDay = new Dictionary<string, Dictionary<DateTime, int>>();
+            RecentMatches = new List<GameMatchResult>();
+            database.SetDateTimeDictionaries(this);
+        }
+
+        public void UpdateRecentMatches()
+        {
+            RecentMatches = RecentMatches
+                .OrderByDescending(result => result.Timestamp)
+                .Take(MaxCount)
+                .ToList();
+        }
     }
 }
