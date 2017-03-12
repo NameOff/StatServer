@@ -2,11 +2,46 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Newtonsoft.Json;
 
 namespace StatServer
 {
     public static class Extensions
     {
+        public const int MaxCount = 50;
+        public const int MinCount = 0;
+        public const int DefaultCount = 5;
+
+        private static int AdjustCount(int count)
+        {
+            if (count > MaxCount)
+                return MaxCount;
+            if (count < MinCount)
+                return MinCount;
+            return count;
+        }
+
+        public static string SerializeTopPlayers(PlayerStats[] players)
+        {
+            var array =
+                players.Select(
+                        player =>
+                            new Dictionary<string, object>
+                            {
+                                ["name"] = player.Name,
+                                ["killToDeathRatio"] = player.KillToDeathRatio
+                            })
+                    .ToArray();
+            return JsonConvert.SerializeObject(array, Formatting.Indented);
+        }
+
+        public static int StringCountToInt(string count)
+        {
+            int result;
+            var isParsed = int.TryParse(count, out result);
+            return isParsed ? AdjustCount(result) : DefaultCount;
+        }
+
         public static DateTime ParseTimestamp(string timestamp)
         {
             return DateTime.Parse(timestamp).ToUniversalTime();
@@ -46,7 +81,6 @@ namespace StatServer
                 return $"'{obj}'";
             if (obj is DateTime)
                 return $"'{(DateTime) obj:s}Z'";
-
             if (obj is double)
                 return ((double)obj).ToString(nfi);
             return obj.ToString();

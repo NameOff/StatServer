@@ -44,7 +44,7 @@ namespace StatServer
             LastMatchPlayed = lastMatchPlayed;
             TotalKills = totalKills;
             TotalDeaths = totalDeaths;
-            UpdateKillToDeathRatio();
+            KillToDeathRatio = CalculateKillToDeathRatio(TotalKills, TotalDeaths);
         }
 
         public PlayerStats(string name)
@@ -54,9 +54,15 @@ namespace StatServer
             PlayedServers = new Dictionary<string, int>();
         }
 
-        private void UpdateKillToDeathRatio()
+        public PlayerStats(string name, double killToDeathRatio)
         {
-            KillToDeathRatio = (double)TotalKills / TotalDeaths;
+            Name = name;
+            KillToDeathRatio = killToDeathRatio;
+        }
+
+        public static double CalculateKillToDeathRatio(int totalKills, int totalDeaths)
+        {
+            return (double)totalKills / totalDeaths;
         }
 
         public double CalculateScoreboardPercent(GameMatchResult match)
@@ -91,7 +97,7 @@ namespace StatServer
             var playerResult = match.Results.Scoreboard.First(info => info.Name == Name);
             TotalKills += playerResult.Kills;
             TotalDeaths += playerResult.Deaths;
-            UpdateKillToDeathRatio();
+            KillToDeathRatio = CalculateKillToDeathRatio(TotalKills, TotalDeaths);
         }
 
         public string Serialize(params Field[] fields)

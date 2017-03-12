@@ -11,27 +11,23 @@ namespace StatServer
 {
     public class Processor
     {
-        public const int MaxCount = 50;
-        public const int MinCount = 0;
-        public const int DefaultCount = 5;
-
-        private readonly Regex gameServerInfoPath = new Regex(@"^/servers/(?<gameServerId>\S*?)/info$", RegexOptions.Compiled);
-        private readonly Regex gameServerStatsPath = new Regex(@"^/servers/(?<gameServerId>\S*?)/stats$", RegexOptions.Compiled);
-        private readonly Regex gameMatchStatsPath = new Regex(@"^/servers/(?<gameServerId>\S*?)/matches/(?<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)", RegexOptions.Compiled);
-        private readonly Regex allGameServersInfoPath = new Regex(@"^/servers/info$", RegexOptions.Compiled);
-        private readonly Regex playerStatsPath = new Regex(@"^/players/(?<playerName>\S*?)/stats$", RegexOptions.Compiled);
-        private readonly Regex recentMatchesPath = new Regex(@"^/reports/recent-matches(/(?<count>-{0,1}\d{1}))?$", RegexOptions.Compiled);
-        private readonly Regex bestPlayersPath = new Regex(@"^/reports/best-players(/(?<count>-{0,1}\d{1}))?$", RegexOptions.Compiled);
-        private readonly Regex popularServersPath = new Regex(@"^/reports/popular-servers(/(?<count>-{0,1}\d{1}))?$", RegexOptions.Compiled);
+        public readonly Regex GameServerInfoPath = new Regex(@"^/servers/(?<gameServerId>\S*?)/info$", RegexOptions.Compiled);
+        public readonly Regex GameServerStatsPath = new Regex(@"^/servers/(?<gameServerId>\S*?)/stats$", RegexOptions.Compiled);
+        public readonly Regex GameMatchStatsPath = new Regex(@"^/servers/(?<gameServerId>\S*?)/matches/(?<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)", RegexOptions.Compiled);
+        public readonly Regex AllGameServersInfoPath = new Regex(@"^/servers/info$", RegexOptions.Compiled);
+        public readonly Regex PlayerStatsPath = new Regex(@"^/players/(?<playerName>\S*?)/stats$", RegexOptions.Compiled);
+        public readonly Regex RecentMatchesPath = new Regex(@"^/reports/recent-matches(/(?<count>-{0,1}\d{1}))?$", RegexOptions.Compiled);
+        public readonly Regex BestPlayersPath = new Regex(@"^/reports/best-players(/(?<count>-{0,1}\d{1}))?$", RegexOptions.Compiled);
+        public readonly Regex PopularServersPath = new Regex(@"^/reports/popular-servers(/(?<count>-{0,1}\d{1}))?$", RegexOptions.Compiled);
         private readonly Dictionary<Regex, Func<HttpRequest, HttpResponse>> MethodByPattern;
 
         private readonly Cache cache;
-        public readonly Database database;
+        private readonly Database database;
 
-        public Processor()
+        public Processor(Database database, Cache cache)
         {
-            database = new Database();
-            cache = new Cache(database, MaxCount);
+            this.database = database;
+            this.cache = cache;
             MethodByPattern = CreateMethodByPattern();
             Console.WriteLine("OK. Start!");
         }
@@ -40,14 +36,14 @@ namespace StatServer
         {
             return new Dictionary<Regex, Func<HttpRequest, HttpResponse>>
             {
-                [gameServerInfoPath] = HandleGameServerInformationRequest, //+
-                [gameMatchStatsPath] = HandleGameMatchStatsRequest, //  +
-                [gameServerStatsPath] = HandleGameServerStatsRequest, //+
-                [allGameServersInfoPath] = HandleAllGameServersInfoRequest, //+
-                [playerStatsPath] = HandlePlayerStatsRequest, //+
-                [recentMatchesPath] = HandleRecentMatchesRequest, //+
-                [bestPlayersPath] = HandleBestPlayersRequest, //-
-                [popularServersPath] = HandlePopularServersRequest //-
+                [GameServerInfoPath] = HandleGameServerInformationRequest, //+
+                [GameMatchStatsPath] = HandleGameMatchStatsRequest, //  +
+                [GameServerStatsPath] = HandleGameServerStatsRequest, //+
+                [AllGameServersInfoPath] = HandleAllGameServersInfoRequest, //+
+                [PlayerStatsPath] = HandlePlayerStatsRequest, //+
+                [RecentMatchesPath] = HandleRecentMatchesRequest, //+
+                [BestPlayersPath] = HandleBestPlayersRequest, //+
+                [PopularServersPath] = HandlePopularServersRequest //-
             };
         }
 
@@ -70,7 +66,7 @@ namespace StatServer
         {
             lock (database)
             {
-                var gameServerId = gameServerInfoPath.Match(request.Uri).Groups["gameServerId"].ToString();
+                var gameServerId = GameServerInfoPath.Match(request.Uri).Groups["gameServerId"].ToString();
                 if (request.Method == HttpMethod.Put)
                 {
                     var info = JsonConvert.DeserializeObject<GameServerInfo>(request.Json, Serializable.Settings);
@@ -106,8 +102,8 @@ namespace StatServer
 
         public HttpResponse HandleGameMatchStatsRequest(HttpRequest request)
         {
-            var gameServerId = gameMatchStatsPath.Match(request.Uri).Groups["gameServerId"].ToString();
-            var timestamp = gameMatchStatsPath.Match(request.Uri).Groups["timestamp"].ToString();
+            var gameServerId = GameMatchStatsPath.Match(request.Uri).Groups["gameServerId"].ToString();
+            var timestamp = GameMatchStatsPath.Match(request.Uri).Groups["timestamp"].ToString();
             if (!cache.GameServersInformation.ContainsKey(gameServerId))
                 return new HttpResponse(HttpResponse.Answer.BadRequest);
             var date = Extensions.ParseTimestamp(timestamp);
@@ -196,6 +192,8 @@ namespace StatServer
                 var id = database.InsertPlayerStats(stats);
                 cache.PlayersStats[name] = id;
             }
+            if (stats.TotalMatchesPlayed >= 10 && stats.TotalDeaths != 0)
+                cache.Players[stats.Name] = stats.KillToDeathRatio;
         }
 
         public HttpResponse HandleAllGameServersInfoRequest(HttpRequest request)
@@ -211,10 +209,10 @@ namespace StatServer
         {
             if (request.Method != HttpMethod.Get)
                 return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
-            var name = HttpUtility.UrlDecode(playerStatsPath.Match(request.Uri).Groups["playerName"].ToString());
+            var name = HttpUtility.UrlDecode(PlayerStatsPath.Match(request.Uri).Groups["playerName"].ToString());
             if (!cache.Players.ContainsKey(name))
                 return new HttpResponse(HttpResponse.Answer.NotFound);
-            var stats = database.GetPlayerStats(cache.Players[name]);
+            var stats = database.GetPlayerStats(cache.PlayersStats[name]);
             if (cache.PlayersFirstMatchDate.ContainsKey(name))
                 stats.CalculateAverageData(cache.PlayersFirstMatchDate[name], cache.LastMatchDate);
             var json = stats.Serialize(PlayerStats.Field.TotalMatchesPlayed, PlayerStats.Field.TotalMatchesWon,
@@ -229,7 +227,7 @@ namespace StatServer
         {
             if (request.Method != HttpMethod.Get)
                 return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
-            var gameServerId = gameServerStatsPath.Match(request.Uri).Groups["gameServerId"].ToString();
+            var gameServerId = GameServerStatsPath.Match(request.Uri).Groups["gameServerId"].ToString();
             if (!cache.GameServersStats.ContainsKey(gameServerId))
                 return new HttpResponse(HttpResponse.Answer.NotFound);
             var stats = database.GetGameServerStats(cache.GameServersStats[gameServerId]);
@@ -246,24 +244,22 @@ namespace StatServer
         {
             if (request.Method != HttpMethod.Get)
                 return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
-            var count = StringCountToInt(recentMatchesPath.Match(request.Uri).Groups["count"].ToString());
-            var matches = cache.RecentMatches.Take(count).ToArray();
+            var count = Extensions.StringCountToInt(RecentMatchesPath.Match(request.Uri).Groups["count"].ToString());
+            var matches = cache.GetRecentMatches(count);
             var json = JsonConvert.SerializeObject(matches, Formatting.Indented, Serializable.Settings);
             return new HttpResponse(HttpResponse.Answer.OK, json);
         }
 
-        private int StringCountToInt(string count)
-        {
-            int result;
-            var isParsed = int.TryParse(count, out result);
-            return isParsed ? AdjustCount(result) : DefaultCount;
-        }
+        
 
         public HttpResponse HandleBestPlayersRequest(HttpRequest request)
         {
             if (request.Method != HttpMethod.Get)
                 return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
-            throw new NotImplementedException();
+            var count = Extensions.StringCountToInt(BestPlayersPath.Match(request.Uri).Groups["count"].ToString());
+            var players = cache.GetTopPlayers(count);
+            var json = Extensions.SerializeTopPlayers(players);
+            return new HttpResponse(HttpResponse.Answer.OK, json);
         }
 
         public HttpResponse HandlePopularServersRequest(HttpRequest request)
@@ -271,15 +267,6 @@ namespace StatServer
             if (request.Method != HttpMethod.Get)
                 return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
             throw new NotImplementedException();
-        }
-
-        private static int AdjustCount(int count)
-        {
-            if (count > MaxCount)
-                return MaxCount;
-            if (count < MinCount)
-                return MinCount;
-            return count;
         }
     }
 }

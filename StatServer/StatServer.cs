@@ -15,17 +15,40 @@ namespace StatServer
 
         public const int ThreadsCount = 10;
 
+        private bool isListening;
+
+        public Database Database;
+        public Cache Cache;
+
         public StatServer()
         {
             listener = new HttpListener();
-            processor = new Processor();
+            Database = new Database();
+            Cache = new Cache(Database);
+            processor = new Processor(Database, Cache);
+        }
+
+        public void ClearDatabaseAndCache()
+        {
+            File.Delete(Database.DatabasePath);
+            Database = new Database();
+            Cache = new Cache(Database);
+        }
+
+        public void Stop()
+        {
+            isListening = false;
+            listener.Stop();
+            listener.Close();
         }
 
         public void Start(string prefix)
         {
             listener.Prefixes.Add(prefix);
             listener.Start();
-            while (true)
+
+            isListening = true;
+            while (isListening)
             {
                 var context = listener.GetContext();
                 HandleRequest(context);

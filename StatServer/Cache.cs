@@ -10,7 +10,7 @@ namespace StatServer
     {
         public DateTime LastMatchDate { get; set; }
 
-        public Dictionary<string, int> Players { get; set; }
+        public Dictionary<string, double> Players { get; set; }
         public Dictionary<string, int> GameServersInformation { get; set; }
         public Dictionary<GameMatchResult, int> GameMatches { get; set; }
         public Dictionary<string, DateTime> GameServersFirstMatchDate { get; set; }
@@ -20,13 +20,11 @@ namespace StatServer
         public Dictionary<string, Dictionary<DateTime, int>> GameServersMatchesPerDay { get; set; }
         public Dictionary<string, Dictionary<DateTime, int>> PlayersMatchesPerDay { get; set; }
         public List<GameMatchResult> RecentMatches { get; set; }
+        public List<PlayerStats> BestPlayers { get; set; }
 
-        public readonly int MaxCount;
-
-        public Cache(Database database, int maxCount)
+        public Cache(Database database)
         {
-            MaxCount = maxCount;
-            Players = new Dictionary<string, int>();
+            Players = database.CreatePlayersDictionary();
             GameMatches = database.CreateGameMatchDictionary();
             GameServersInformation = database.CreateGameServersDictionary();
             GameServersStats = database.CreateGameServersStatsDictionary();
@@ -43,8 +41,24 @@ namespace StatServer
         {
             RecentMatches = RecentMatches
                 .OrderByDescending(result => result.Timestamp)
-                .Take(MaxCount)
+                .Take(Extensions.MaxCount)
                 .ToList();
+        }
+
+        public GameMatchResult[] GetRecentMatches(int count)
+        {
+            return RecentMatches
+                .Take(count)
+                .ToArray();
+        }
+
+        public PlayerStats[] GetTopPlayers(int count)
+        {
+            return Players.Keys
+                .OrderByDescending(name => Players[name])
+                .Take(count)
+                .Select(name => new PlayerStats(name, Players[name]))
+                .ToArray();
         }
     }
 }

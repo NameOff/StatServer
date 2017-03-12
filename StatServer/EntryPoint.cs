@@ -35,12 +35,13 @@ namespace StatServer
             {
                 try
                 {
+                    //Console.WriteLine(server.processor.database.DatabasePath);
                     server.Start(options.Prefix);
                 }
                 catch (Exception e)
                 {
-                    server.processor.database.Connection.Close();
-                    throw e;
+                    server.Database.Connection.Close();
+                    throw;
                 }
             }
         }

@@ -10,6 +10,7 @@ namespace StatServer
     public class Database
     {
         public const string DatabaseName = "statistics.sqlite";
+        public string DatabasePath => AppDomain.CurrentDomain.BaseDirectory + '\\' + DatabaseName; //todo path join
 
         public enum Table
         {
@@ -48,15 +49,15 @@ namespace StatServer
 
         private void Initialize()
         {
-            if (File.Exists(DatabaseName))
+            if (File.Exists(DatabasePath))
             {
-                Connection = new SQLiteConnection($"Data Source = {DatabaseName}; Version=3;");
+                Connection = new SQLiteConnection($"Data Source = {DatabasePath}; Version=3;");
                 Connection.Open();
                 return;
             }
 
-            SQLiteConnection.CreateFile(DatabaseName);
-            Connection = new SQLiteConnection($"Data Source = {DatabaseName}; Version=3;");
+            SQLiteConnection.CreateFile(DatabasePath);
+            Connection = new SQLiteConnection($"Data Source = {DatabasePath}; Version=3;");
             Connection.Open();
             CreateAllTables();
         }
@@ -68,6 +69,24 @@ namespace StatServer
             foreach (var row in rows)
                 playersStats[row[1]] = int.Parse(row[0]);
             return playersStats;
+        }
+
+        public Dictionary<string, double> CreatePlayersDictionary()
+        {
+            var players = new Dictionary<string, double>();
+            var rows = GetAllRows(Table.PlayersStats);
+            foreach (var row in rows)
+            {
+                var name = row[1];
+                var totalKills = int.Parse(row[8]);
+                var totalDeaths = int.Parse(row[9]);
+                var totalPlayed = int.Parse(row[2]);
+                if (totalPlayed < 10 || totalDeaths == 0)
+                    continue;
+                var killToDeathRatio = PlayerStats.CalculateKillToDeathRatio(totalKills, totalDeaths);
+                players[name] = killToDeathRatio;
+            }
+            return players;
         }
 
         private void ExecuteQuery(params string[] commands)
@@ -94,7 +113,7 @@ namespace StatServer
                 var date = Extensions.ParseTimestamp(row[8]);
                 var match = ParseGameMatchStats(row);
                 cache.RecentMatches.Add(new GameMatchResult(server, date) { Results = match });
-                if (cache.RecentMatches.Count >= cache.MaxCount * 10)
+                if (cache.RecentMatches.Count >= Extensions.MaxCount * 10)
                     cache.UpdateRecentMatches();
                 if (!cache.GameServersFirstMatchDate.ContainsKey(server) || cache.GameServersFirstMatchDate[server] > date)
                     cache.GameServersFirstMatchDate[server] = date;
