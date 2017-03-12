@@ -56,7 +56,7 @@ namespace StatServer
         {
             var data = played.Keys
                 .Select(key => $"{key}:{played[key]}");
-            return string.Join("", data);
+            return string.Join(", ", data);
         }
 
         public static Dictionary<string, int> DecodeElements(string encoded)

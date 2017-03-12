@@ -1,8 +1,10 @@
-﻿namespace StatServer
+﻿using System.Collections.Generic;
+
+namespace StatServer
 {
     public class HttpResponse
     {
-        public enum Answer
+        public enum Status
         {
             OK = 200,
             BadRequest = 400,
@@ -10,17 +12,27 @@
             MethodNotAllowed = 405
         }
 
+        public static Status StringToStatus(string status)
+        {
+            var answers = new Dictionary<string, Status>
+            {
+                ["Not Found"] = Status.NotFound,
+                //[""]
+            };
+            return answers[status];
+        }
+
         public readonly int Code;
         public readonly string Message;
 
-        public HttpResponse(Answer answer)
+        public HttpResponse(Status status)
         {
-            Code = (int)answer;
+            Code = (int)status;
         }
 
-        public HttpResponse(Answer answer, string message)
+        public HttpResponse(Status status, string message)
         {
-            Code = (int)answer;
+            Code = (int)status;
             Message = message;
         }
     }

@@ -57,9 +57,9 @@ namespace StatServer
             }
             catch (JsonReaderException)
             {
-                return new HttpResponse(HttpResponse.Answer.BadRequest);
+                return new HttpResponse(HttpResponse.Status.BadRequest);
             }
-            return new HttpResponse(HttpResponse.Answer.NotFound);
+            return new HttpResponse(HttpResponse.Status.NotFound);
         }
 
         public HttpResponse HandleGameServerInformationRequest(HttpRequest request)
@@ -79,19 +79,19 @@ namespace StatServer
                         var statsId = database.InsertGameServerStats(new GameServerStats(gameServerId, info.Name));
                         cache.GameServersStats[gameServerId] = statsId;
                     }
-                    return new HttpResponse(HttpResponse.Answer.OK);
+                    return new HttpResponse(HttpResponse.Status.OK);
                 }
 
                 if (request.Method == HttpMethod.Get)
                 {
                     if (!cache.GameServersInformation.ContainsKey(gameServerId))
-                        return new HttpResponse(HttpResponse.Answer.NotFound);
+                        return new HttpResponse(HttpResponse.Status.NotFound);
                     var info = database.GetServerInformation(cache.GameServersInformation[gameServerId]);
-                    return new HttpResponse(HttpResponse.Answer.OK,
+                    return new HttpResponse(HttpResponse.Status.OK,
                         JsonConvert.SerializeObject(info, Formatting.Indented, Serializable.Settings));
                 }
             }
-            return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+            return new HttpResponse(HttpResponse.Status.MethodNotAllowed);
         }
 
         private void UpdateLastDate(DateTime date)
@@ -105,7 +105,7 @@ namespace StatServer
             var gameServerId = GameMatchStatsPath.Match(request.Uri).Groups["gameServerId"].ToString();
             var timestamp = GameMatchStatsPath.Match(request.Uri).Groups["timestamp"].ToString();
             if (!cache.GameServersInformation.ContainsKey(gameServerId))
-                return new HttpResponse(HttpResponse.Answer.BadRequest);
+                return new HttpResponse(HttpResponse.Status.BadRequest);
             var date = Extensions.ParseTimestamp(timestamp);
             var matchInfo = new GameMatchResult(gameServerId, timestamp);
             if (request.Method == HttpMethod.Put)
@@ -115,7 +115,7 @@ namespace StatServer
                 PutGameMatchResult(request.Json, matchInfo, date);
                 a.Stop();
                 Console.WriteLine($"PUT запрос статистики матча. Общее время: {a.Elapsed}");
-                return new HttpResponse(HttpResponse.Answer.OK);
+                return new HttpResponse(HttpResponse.Status.OK);
             }
 
             if (request.Method == HttpMethod.Get)
@@ -123,15 +123,15 @@ namespace StatServer
                 Stopwatch a = new Stopwatch();
                 a.Start();
                 if (!cache.GameMatches.ContainsKey(matchInfo))
-                    return new HttpResponse(HttpResponse.Answer.NotFound);
+                    return new HttpResponse(HttpResponse.Status.NotFound);
                 var stats = database.GetGameMatchStats(cache.GameMatches[matchInfo]);
                 var json = JsonConvert.SerializeObject(stats, Formatting.Indented, Serializable.Settings);
                 a.Stop();
                 Console.WriteLine($"GET запрос статистики матча. Общее время: {a.Elapsed}");
-                return new HttpResponse(HttpResponse.Answer.OK, json);
+                return new HttpResponse(HttpResponse.Status.OK, json);
             }
 
-            return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+            return new HttpResponse(HttpResponse.Status.MethodNotAllowed);
         }
 
         private void PutGameMatchResult(string json, GameMatchResult matchInfo, DateTime date)
@@ -199,19 +199,19 @@ namespace StatServer
         public HttpResponse HandleAllGameServersInfoRequest(HttpRequest request)
         {
             if (request.Method != HttpMethod.Get)
-                return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+                return new HttpResponse(HttpResponse.Status.MethodNotAllowed);
             var answer = database.GetAllGameServerInformation().ToArray();
             var json = JsonConvert.SerializeObject(answer, Formatting.Indented, Serializable.Settings);
-            return new HttpResponse(HttpResponse.Answer.OK, json);
+            return new HttpResponse(HttpResponse.Status.OK, json);
         }
 
         public HttpResponse HandlePlayerStatsRequest(HttpRequest request)
         {
             if (request.Method != HttpMethod.Get)
-                return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+                return new HttpResponse(HttpResponse.Status.MethodNotAllowed);
             var name = HttpUtility.UrlDecode(PlayerStatsPath.Match(request.Uri).Groups["playerName"].ToString());
             if (!cache.Players.ContainsKey(name))
-                return new HttpResponse(HttpResponse.Answer.NotFound);
+                return new HttpResponse(HttpResponse.Status.NotFound);
             var stats = database.GetPlayerStats(cache.PlayersStats[name]);
             if (cache.PlayersFirstMatchDate.ContainsKey(name))
                 stats.CalculateAverageData(cache.PlayersFirstMatchDate[name], cache.LastMatchDate);
@@ -220,16 +220,16 @@ namespace StatServer
                 PlayerStats.Field.AverageScoreboardPercent, PlayerStats.Field.MaximumMatchesPerDay,
                 PlayerStats.Field.AverageMatchesPerDay, PlayerStats.Field.LastMatchPlayed,
                 PlayerStats.Field.KillToDeathRatio);
-            return new HttpResponse(HttpResponse.Answer.OK, json);
+            return new HttpResponse(HttpResponse.Status.OK, json);
         }
 
         public HttpResponse HandleGameServerStatsRequest(HttpRequest request)
         {
             if (request.Method != HttpMethod.Get)
-                return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+                return new HttpResponse(HttpResponse.Status.MethodNotAllowed);
             var gameServerId = GameServerStatsPath.Match(request.Uri).Groups["gameServerId"].ToString();
             if (!cache.GameServersStats.ContainsKey(gameServerId))
-                return new HttpResponse(HttpResponse.Answer.NotFound);
+                return new HttpResponse(HttpResponse.Status.NotFound);
             var stats = database.GetGameServerStats(cache.GameServersStats[gameServerId]);
             if (cache.GameServersFirstMatchDate.ContainsKey(gameServerId))
                 stats.CalculateAverageData(cache.GameServersFirstMatchDate[gameServerId], cache.LastMatchDate);
@@ -237,17 +237,17 @@ namespace StatServer
                 GameServerStats.Field.MaximumMatchesPerDay, GameServerStats.Field.AverageMatchesPerDay,
                 GameServerStats.Field.MaximumPopulation, GameServerStats.Field.AveragePopulation,
                 GameServerStats.Field.Top5GameModes, GameServerStats.Field.Top5Maps);
-            return new HttpResponse(HttpResponse.Answer.OK, json);
+            return new HttpResponse(HttpResponse.Status.OK, json);
         }
 
         public HttpResponse HandleRecentMatchesRequest(HttpRequest request)
         {
             if (request.Method != HttpMethod.Get)
-                return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+                return new HttpResponse(HttpResponse.Status.MethodNotAllowed);
             var count = Extensions.StringCountToInt(RecentMatchesPath.Match(request.Uri).Groups["count"].ToString());
             var matches = cache.GetRecentMatches(count);
             var json = JsonConvert.SerializeObject(matches, Formatting.Indented, Serializable.Settings);
-            return new HttpResponse(HttpResponse.Answer.OK, json);
+            return new HttpResponse(HttpResponse.Status.OK, json);
         }
 
         
@@ -255,17 +255,17 @@ namespace StatServer
         public HttpResponse HandleBestPlayersRequest(HttpRequest request)
         {
             if (request.Method != HttpMethod.Get)
-                return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+                return new HttpResponse(HttpResponse.Status.MethodNotAllowed);
             var count = Extensions.StringCountToInt(BestPlayersPath.Match(request.Uri).Groups["count"].ToString());
             var players = cache.GetTopPlayers(count);
             var json = Extensions.SerializeTopPlayers(players);
-            return new HttpResponse(HttpResponse.Answer.OK, json);
+            return new HttpResponse(HttpResponse.Status.OK, json);
         }
 
         public HttpResponse HandlePopularServersRequest(HttpRequest request)
         {
             if (request.Method != HttpMethod.Get)
-                return new HttpResponse(HttpResponse.Answer.MethodNotAllowed);
+                return new HttpResponse(HttpResponse.Status.MethodNotAllowed);
             throw new NotImplementedException();
         }
     }

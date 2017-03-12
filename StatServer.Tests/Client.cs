@@ -26,20 +26,18 @@ namespace StatServer.Tests
                 var statusCode = httpResponse.StatusCode;
                 string result;
                 using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
-                {
                     result = streamReader.ReadToEnd();
-                }
+                
 
-                return new HttpResponse((HttpResponse.Answer)statusCode, result);
+                return new HttpResponse((HttpResponse.Status)statusCode, result);
             }
-            catch (WebException e)
+            catch (WebException)
             {
-                Console.WriteLine(e);
-                throw;
+                return new HttpResponse(HttpResponse.Status.NotFound);
             }
         }
 
-        public HttpResponse SendGetRequest(string uri)
+        private HttpResponse SendGetRequest(string uri)
         {
             var httpWebRequest =
                 (HttpWebRequest)WebRequest.Create($"{Prefix}{uri}");
@@ -48,7 +46,7 @@ namespace StatServer.Tests
             return GetAnswer(httpWebRequest);
         }
 
-        public HttpResponse SendPutRequest(string uri, string json)
+        private HttpResponse SendPutRequest(string uri, string json)
         {
             var httpWebRequest =
                 (HttpWebRequest)WebRequest.Create($"{Prefix}{uri}");
@@ -69,7 +67,7 @@ namespace StatServer.Tests
 
         public HttpResponse PutMatchStats(GameMatchStats stats, string endpoint, DateTime timestamp)
         {
-            var stringTimestamp = Extensions.ObjectToString(timestamp);
+            var stringTimestamp = $"{timestamp:s}Z";
             var uri = $"servers/{endpoint}/matches/{stringTimestamp}";
             var json = JsonConvert.SerializeObject(stats);
             return SendPutRequest(uri, json);
@@ -84,7 +82,7 @@ namespace StatServer.Tests
 
         public HttpResponse GetMatchStats(string endpoint, DateTime timestamp)
         {
-            var stringTimestamp = Extensions.ObjectToString(timestamp);
+            var stringTimestamp = $"{timestamp:s}Z";
             var uri = $"servers/{endpoint}/matches/{stringTimestamp}";
             return SendGetRequest(uri);
         }
