@@ -60,8 +60,8 @@
     <Compile Include="Client.cs" />
     <Compile Include="PlayerStats_should.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="RegExp_should.cs" />
-    <Compile Include="StatServer_should.cs" />
+    <Compile Include="RegExp_should_correctMatch.cs" />
+    <Compile Include="StatServer_should_sendCorrectResponse.cs" />
     <Compile Include="Test.cs" />
   </ItemGroup>
   <ItemGroup>

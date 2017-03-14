@@ -42,12 +42,13 @@ namespace StatServer
             Top5GameModes = GetTop5(PlayedGameModes);
         }
 
-        public GameServerStats(string serverId, string name)
+        public GameServerStats(string serverId, string name, double averageMatchesPerDay = 0)
         {
             Endpoint = serverId;
             Name = name;
             PlayedGameModes = new Dictionary<string, int>();
             PlayedMaps = new Dictionary<string, int>();
+            AverageMatchesPerDay = averageMatchesPerDay;
         }
 
         public GameServerStats()

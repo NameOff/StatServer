@@ -10,7 +10,7 @@ using Newtonsoft.Json;
 
 namespace StatServer.Tests
 {
-    class StatServer_should
+    class StatServer_should_sendCorrectResponse
     {
         private StatServer server;
         private Client client;
@@ -49,7 +49,7 @@ namespace StatServer.Tests
         }
 
         [Test]
-        public void SendCorrectResponse_AfterClientSendingGetServerInfoRequest()
+        public void AfterClientSendingGetServerInfoRequest()
         {
             SendServer1Info();
             var response = client.SendRequest().GetServerInfo(Test.Server1Endpoint);
@@ -59,7 +59,7 @@ namespace StatServer.Tests
         }
 
         [Test]
-        public void SendCorrectResponse_AfterClientSendingPutAndGetMatchStatsRequest()
+        public void AfterClientSendingPutAndGetMatchStatsRequest()
         {
             SendServer1Info();
             SendGameMatch();
@@ -70,7 +70,7 @@ namespace StatServer.Tests
         }
 
         [Test]
-        public void SendCorrectResponse_AfterClientSendingGetPlayerStatsRequest()
+        public void AfterClientSendingGetPlayerStatsRequest()
         {
             SendServer1Info();
             SendGameMatch();
@@ -84,7 +84,7 @@ namespace StatServer.Tests
         }
 
         [Test]
-        public void SendCorrectResponse_AfterClientSendingGetServerStatsRequest()
+        public void AfterClientSendingGetServerStatsRequest()
         {
             SendServer1Info();
             SendGameMatch();
@@ -98,7 +98,7 @@ namespace StatServer.Tests
         }
 
         [Test]
-        public void SendCorrectResponse_AfterClientSendingGetAllServersInfoRequest()
+        public void AfterClientSendingGetAllServersInfoRequest()
         {
             SendServer1Info();
             SendServer2Info();
@@ -113,7 +113,7 @@ namespace StatServer.Tests
         }
 
         [Test]
-        public void SendCorrectResponse_AfterClientSendingGetRecentMatchesRequest()
+        public void AfterClientSendingGetRecentMatchesRequest()
         {
             var match = Test.CreateGameMatchStats();
             SendServer1Info();
@@ -135,7 +135,7 @@ namespace StatServer.Tests
         }
 
         [Test]
-        public void SendCorrectResponse_AfterClientSendingGetBestPlayersRequest()
+        public void AfterClientSendingGetBestPlayersRequest()
         {
             SendServer1Info();
             var match = Test.CreateGameMatchStats();
@@ -156,6 +156,31 @@ namespace StatServer.Tests
             var json = Extensions.SerializeTopPlayers(playersStats);
             var bestPlayers = JsonConvert.DeserializeObject<PlayerStats[]>(json);
             result.ShouldBeEquivalentTo(bestPlayers);
+        }
+
+        [Test]
+        public void AfterClientSendingGetPopularServersRequest()
+        {
+            SendServer1Info();
+            SendServer2Info();
+            SendServer3Info();
+            var match = Test.CreateGameMatchStats();
+            for (var i = 0; i < 5; i++)
+                client.SendRequest().PutMatchStats(match, Test.Server1Endpoint, Test.Timestamp1);
+            for (var i = 0; i < 3; i++)
+                client.SendRequest().PutMatchStats(match, Test.Server2Endpoint, Test.Timestamp1);
+            for (var i = 0; i < 2; i++)
+                client.SendRequest().PutMatchStats(match, Test.Server3Endpoint, Test.Timestamp1);
+            var response = client.GetPopularServers(3);
+            server.ClearDatabaseAndCache();
+            var server1 = new GameServerStats(Test.Server1Endpoint, Test.Server1Name, 5);
+            var server2 = new GameServerStats(Test.Server2Endpoint, Test.Server2Name, 3);
+            var server3 = new GameServerStats(Test.Server3Endpoint, Test.Server3Name, 2);
+            var servers = new[] {server1, server2, server3};
+            var json = Extensions.SerializePopularServers(servers);
+            var popularServers = JsonConvert.DeserializeObject<GameServerStats[]>(json);
+            var result = JsonConvert.DeserializeObject<GameServerStats[]>(response.Message);
+            result.ShouldBeEquivalentTo(popularServers);
         }
 
         [TearDown]

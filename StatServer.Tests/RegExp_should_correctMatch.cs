@@ -8,7 +8,7 @@ using FluentAssertions;
 
 namespace StatServer.Tests
 {
-    class RegExp_should
+    class RegExp_should_correctMatch
     {
         [TestCase("/servers/192.123.123.1-8080/info", true)]
         [TestCase("/servers/abcdefg/info", true)]
@@ -20,7 +20,7 @@ namespace StatServer.Tests
         [TestCase("abracadabra", false)]
         [TestCase("server/abcde/info", false)]
         [TestCase("servers/abcd/nfo", false)]
-        public void CorrectMatch_WithGameServerInfoPath(string path, bool isMatched)
+        public void WithGameServerInfoPath(string path, bool isMatched)
         {
             // /servers/<endpoint>/info
             Processor.GameServerInfoPath.IsMatch(path).Should().Be(isMatched);
@@ -38,7 +38,7 @@ namespace StatServer.Tests
         [TestCase("/servers/0.0.0.1-8080/matches/2017-01-22T15-17-00Z", false)]
         [TestCase("servers/0.0.0.1-8080/matches/2017-01-22T15:17:00Z", false)]
         [TestCase("/servers/0.0.0.1-8080/matches/2017-01-T15:17:00Z", false)]
-        public void CorrectMatch_WithGameMatchStatsPath(string path, bool isMatched)
+        public void WithGameMatchStatsPath(string path, bool isMatched)
         {
             // /servers/<endpoint>/matches/<timestamp>
             // correct timestamp example 2017-01-22T15:17:00Z
@@ -49,7 +49,7 @@ namespace StatServer.Tests
         [TestCase("servers/info", false)]
         [TestCase("/servers/info/", false)]
         [TestCase("/servers//info", false)]
-        public void CorrectMatch_WithAllGameServersInfoPath(string path, bool isMatched)
+        public void WithAllGameServersInfoPath(string path, bool isMatched)
         {
             // /servers/info
             Processor.AllGameServersInfoPath.IsMatch(path).Should().Be(isMatched);
@@ -65,7 +65,7 @@ namespace StatServer.Tests
         [TestCase("/servers/id/stat", false)]
         [TestCase("/server/id/stats", false)]
         [TestCase("//servers/id/stats", false)]
-        public void CorrectMatch_WithGameServerStatsPath(string path, bool isMatched)
+        public void WithGameServerStatsPath(string path, bool isMatched)
         {
             // /servers/<endpoint>/stats
             Processor.GameServerStatsPath.IsMatch(path).Should().Be(isMatched);
@@ -78,7 +78,7 @@ namespace StatServer.Tests
         [TestCase("/players/player/stats/", false)]
         [TestCase("players/player/stats", false)]
         [TestCase("/players/player/stat", false)]
-        public void CorrectMatch_WithPlayerStatsPath(string path, bool isMatched)
+        public void WithPlayerStatsPath(string path, bool isMatched)
         {
             // /players/<name>/stats
             Processor.PlayerStatsPath.IsMatch(path).Should().Be(isMatched);
@@ -94,7 +94,7 @@ namespace StatServer.Tests
         [TestCase("/reports/recent-matches/--10", false)]
         [TestCase("/reports/recent-matches/-10/", false)]
         [TestCase("/reports/recent-matches/(10)", false)]
-        public void CorrectMatch_WithRecentMatchesPath(string path, bool isMatched)
+        public void WithRecentMatchesPath(string path, bool isMatched)
         {
             // /reports/recent-matches[/<count>]
             Processor.RecentMatchesPath.IsMatch(path).Should().Be(isMatched);
@@ -110,7 +110,7 @@ namespace StatServer.Tests
         [TestCase("/reports/best-players/--10", false)]
         [TestCase("/reports/best-players/-10/", false)]
         [TestCase("/reports/best-players/(10)", false)]
-        public void CorrectMatch_WithBestPlayersPath(string path, bool isMatched)
+        public void WithBestPlayersPath(string path, bool isMatched)
         {
             // /reports/best-players[/<count>]
             Processor.BestPlayersPath.IsMatch(path).Should().Be(isMatched);
@@ -126,7 +126,7 @@ namespace StatServer.Tests
         [TestCase("/reports/popular-servers/--10", false)]
         [TestCase("/reports/popular-servers/-10/", false)]
         [TestCase("/reports/popular-servers/(10)", false)]
-        public void CorrectMatch_WithPopularServersPath(string path, bool isMatched)
+        public void WithPopularServersPath(string path, bool isMatched)
         {
             // /reports/popular-servers[/<count>]
             Processor.PopularServersPath.IsMatch(path).Should().Be(isMatched);

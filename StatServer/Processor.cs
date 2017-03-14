@@ -100,7 +100,15 @@ namespace StatServer
         private void UpdateLastDate(DateTime date)
         {
             if (cache.LastMatchDate == default(DateTime) || date > cache.LastMatchDate)
+            {
                 cache.LastMatchDate = date;
+                foreach (var endpoint in cache.GameServersStats.Keys)
+                {
+                    if (!cache.GameServersFirstMatchDate.ContainsKey(endpoint))
+                        continue;
+                    cache.GameServersStats[endpoint].CalculateAverageData(cache.GameServersFirstMatchDate[endpoint], date);
+                }
+            }
         }
 
         public HttpResponse HandleGameMatchStatsRequest(HttpRequest request)
@@ -164,7 +172,7 @@ namespace StatServer
             if (!cache.GameServersMatchesPerDay.ContainsKey(matchInfo.Server))
                 cache.GameServersMatchesPerDay[matchInfo.Server] = new Dictionary<DateTime, int>();
             cache.GameServersStats[matchInfo.Server].Update(matchInfo, cache.GameServersMatchesPerDay[matchInfo.Server]);
-            
+            cache.GameServersStats[matchInfo.Server].CalculateAverageData(cache.GameServersFirstMatchDate[matchInfo.Server], cache.LastMatchDate);
 
             a.Stop();
             Console.WriteLine($"PUT запрос статистики матча. БД: {a.Elapsed}");
@@ -264,7 +272,10 @@ namespace StatServer
         {
             if (request.Method != HttpMethod.Get)
                 return new HttpResponse(HttpResponse.Status.MethodNotAllowed);
-            throw new NotImplementedException();
+            var count = Extensions.StringCountToInt(BestPlayersPath.Match(request.Uri).Groups["count"].ToString());
+            var servers = cache.GetPopularServers(count);
+            var json = Extensions.SerializePopularServers(servers);
+            return new HttpResponse(HttpResponse.Status.OK, json);
         }
     }
 }

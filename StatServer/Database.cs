@@ -87,14 +87,22 @@ namespace StatServer
             foreach (var server in allServers)
                 serversStats[server.Endpoint] = new GameServerStats(server.Endpoint, server.Info.Name) { Info = server.Info };
             var allMatches = GetAllRows(Table.GameMatchStats);
+            var serverFirstMatchDate = new Dictionary<string, DateTime>();
+            var lastMatch = new DateTime();
             foreach (var row in allMatches)
             {
                 var endpoint = row[7];
                 var timestamp = Extensions.ParseTimestamp(row[8]);
+                if (lastMatch < timestamp)
+                    lastMatch = timestamp;
                 var match = ParseGameMatchStats(row);
                 var matchResult = new GameMatchResult(endpoint, timestamp) { Results = match };
+                if (!serverFirstMatchDate.ContainsKey(endpoint) || serverFirstMatchDate[endpoint] > timestamp.Date)
+                    serverFirstMatchDate[endpoint] = timestamp.Date;
                 serversStats[endpoint].Update(matchResult, serversMatchesPerDay[row[7]]);
             }
+            foreach (var stats in serversStats.Values)
+                stats.CalculateAverageData(serverFirstMatchDate[stats.Endpoint], lastMatch);
             return serversStats;
         }
 
@@ -129,6 +137,8 @@ namespace StatServer
             {
                 var server = row[7];
                 var date = Extensions.ParseTimestamp(row[8]);
+                if (cache.LastMatchDate < date)
+                    cache.LastMatchDate = date;
                 var match = ParseGameMatchStats(row);
                 cache.RecentMatches.Add(new GameMatchResult(server, date) { Results = match });
                 if (cache.RecentMatches.Count >= Extensions.MaxCount * 10)

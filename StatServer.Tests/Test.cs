@@ -33,9 +33,6 @@ namespace StatServer.Tests
 
         public static DateTime Timestamp1 = Extensions.ParseTimestamp("2017-01-22T15:17:00Z");
 
-
-        public enum Player { NameOff, Snoward, Qoter, Apollon76, Umqra }
-
         public static GameMatchStats CreateGameMatchStats()
         {
             var scoreboard = new[]

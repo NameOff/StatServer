@@ -23,15 +23,24 @@ namespace StatServer
 
         public static string SerializeTopPlayers(PlayerStats[] players)
         {
-            var array =
-                players.Select(
-                        player =>
-                            new Dictionary<string, object>
-                            {
-                                ["name"] = player.Name,
-                                ["killToDeathRatio"] = player.KillToDeathRatio
-                            })
-                    .ToArray();
+            var array = players.Select(player => new Dictionary<string, object>
+            {
+                ["name"] = player.Name,
+                ["killToDeathRatio"] = player.KillToDeathRatio
+            })
+            .ToArray();
+            return JsonConvert.SerializeObject(array, Formatting.Indented);
+        }
+
+        public static string SerializePopularServers(GameServerStats[] servers)
+        {
+            var array = servers.Select(server => new Dictionary<string, object>
+            {
+                ["endpoint"] = server.Endpoint,
+                ["name"] = server.Name,
+                ["averageMatchesPerDay"] = server.AverageMatchesPerDay
+            })
+            .ToArray();
             return JsonConvert.SerializeObject(array, Formatting.Indented);
         }
 
@@ -80,7 +89,7 @@ namespace StatServer
             if (obj is string)
                 return $"'{obj}'";
             if (obj is DateTime)
-                return $"'{(DateTime) obj:s}Z'";
+                return $"'{(DateTime)obj:s}Z'";
             if (obj is double)
                 return ((double)obj).ToString(nfi);
             return obj.ToString();

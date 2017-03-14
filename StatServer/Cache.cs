@@ -59,5 +59,13 @@ namespace StatServer
                 .Select(name => new PlayerStats(name, Players[name]))
                 .ToArray();
         }
+
+        public GameServerStats[] GetPopularServers(int count)
+        {
+            return GameServersStats.Values
+                .OrderByDescending(server => server.AverageMatchesPerDay)
+                .Take(count)
+                .ToArray();
+        }
     }
 }
