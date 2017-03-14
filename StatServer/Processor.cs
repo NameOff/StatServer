@@ -11,15 +11,15 @@ namespace StatServer
 {
     public class Processor
     {
-        public readonly Regex GameServerInfoPath = new Regex(@"^/servers/(?<gameServerId>\S*?)/info$", RegexOptions.Compiled);
-        public readonly Regex GameServerStatsPath = new Regex(@"^/servers/(?<gameServerId>\S*?)/stats$", RegexOptions.Compiled);
-        public readonly Regex GameMatchStatsPath = new Regex(@"^/servers/(?<gameServerId>\S*?)/matches/(?<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)", RegexOptions.Compiled);
-        public readonly Regex AllGameServersInfoPath = new Regex(@"^/servers/info$", RegexOptions.Compiled);
-        public readonly Regex PlayerStatsPath = new Regex(@"^/players/(?<playerName>\S*?)/stats$", RegexOptions.Compiled);
-        public readonly Regex RecentMatchesPath = new Regex(@"^/reports/recent-matches(/(?<count>-{0,1}\d{1}))?$", RegexOptions.Compiled);
-        public readonly Regex BestPlayersPath = new Regex(@"^/reports/best-players(/(?<count>-{0,1}\d{1}))?$", RegexOptions.Compiled);
-        public readonly Regex PopularServersPath = new Regex(@"^/reports/popular-servers(/(?<count>-{0,1}\d{1}))?$", RegexOptions.Compiled);
-        private readonly Dictionary<Regex, Func<HttpRequest, HttpResponse>> MethodByPattern;
+        public static Regex GameServerInfoPath => new Regex(@"^/servers/(?<gameServerId>\S*?)/info$", RegexOptions.Compiled);
+        public static Regex GameServerStatsPath => new Regex(@"^/servers/(?<gameServerId>\S*?)/stats$", RegexOptions.Compiled);
+        public static Regex GameMatchStatsPath => new Regex(@"^/servers/(?<gameServerId>\S*?)/matches/(?<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)", RegexOptions.Compiled);
+        public static Regex AllGameServersInfoPath => new Regex(@"^/servers/info$", RegexOptions.Compiled);
+        public static Regex PlayerStatsPath => new Regex(@"^/players/(?<playerName>\S*?)/stats$", RegexOptions.Compiled);
+        public static Regex RecentMatchesPath => new Regex(@"^/reports/recent-matches(/(?<count>-?\d{1,}))?$", RegexOptions.Compiled);
+        public static Regex BestPlayersPath => new Regex(@"^/reports/best-players(/(?<count>-?\d{1,}))?$", RegexOptions.Compiled);
+        public static Regex PopularServersPath => new Regex(@"^/reports/popular-servers(/(?<count>-?\d{1,}))?$", RegexOptions.Compiled);
+        private static Dictionary<Regex, Func<HttpRequest, HttpResponse>> MethodByPattern;
 
         private readonly Cache cache;
         private readonly Database database;
@@ -74,7 +74,6 @@ namespace StatServer
                     {
                         database.UpdateGameServerInfo(cache.GameServersInformation[gameServerId], info, gameServerId);
                         cache.GameServersStats[gameServerId].Name = info.Name;
-                        cache.GameServersStats[gameServerId].Info = info;
                     }
                     else
                     {
@@ -82,6 +81,7 @@ namespace StatServer
                         cache.GameServersInformation[gameServerId] = id;
                         cache.GameServersStats[gameServerId] = new GameServerStats(gameServerId, info.Name);
                     }
+                    cache.GameServersStats[gameServerId].Info = info;
                     return new HttpResponse(HttpResponse.Status.OK);
                 }
 
@@ -89,7 +89,7 @@ namespace StatServer
                 {
                     if (!cache.GameServersInformation.ContainsKey(gameServerId))
                         return new HttpResponse(HttpResponse.Status.NotFound);
-                    var info = database.GetServerInformation(cache.GameServersInformation[gameServerId]);
+                    var info = cache.GameServersStats[gameServerId].Info;
                     return new HttpResponse(HttpResponse.Status.OK,
                         JsonConvert.SerializeObject(info, Formatting.Indented, Serializable.Settings));
                 }

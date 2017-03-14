@@ -37,7 +37,7 @@ namespace StatServer
 
         public override bool Equals(object obj)
         {
-            var info = (GameMatchResult) obj;
+            var info =  obj as GameMatchResult;
             return info?.Server == Server && info?.Timestamp == Timestamp;
         }
     }

@@ -53,8 +53,8 @@ namespace StatServer.Tests
         {
             SendServer1Info();
             var response = client.SendRequest().GetServerInfo(Test.Server1Endpoint);
-            var info = JsonConvert.DeserializeObject<GameServerInfo>(response.Message);
             server.ClearDatabaseAndCache();
+            var info = JsonConvert.DeserializeObject<GameServerInfo>(response.Message);
             info.ShouldBeEquivalentTo(Test.CreateGameServer1Info());
         }
 
@@ -64,8 +64,8 @@ namespace StatServer.Tests
             SendServer1Info();
             SendGameMatch();
             var response = client.SendRequest().GetMatchStats(Test.Server1Endpoint, Test.Timestamp1);
-            var gameMatch = JsonConvert.DeserializeObject<GameMatchStats>(response.Message);
             server.ClearDatabaseAndCache();
+            var gameMatch = JsonConvert.DeserializeObject<GameMatchStats>(response.Message);
             gameMatch.ShouldBeEquivalentTo(Test.CreateGameMatchStats());
         }
 
@@ -78,8 +78,8 @@ namespace StatServer.Tests
             var json = stats.SerializeForGetResponse();
             stats = JsonConvert.DeserializeObject<PlayerStats>(json);
             var response = client.SendRequest().GetPlayerStats(Test.PlayerNameOff);
-            var result = JsonConvert.DeserializeObject<PlayerStats>(response.Message);
             server.ClearDatabaseAndCache();
+            var result = JsonConvert.DeserializeObject<PlayerStats>(response.Message);
             result.ShouldBeEquivalentTo(stats);
         }
 
@@ -92,8 +92,8 @@ namespace StatServer.Tests
             var json = stats.SerializeForGetResponse();
             stats = JsonConvert.DeserializeObject<GameServerStats>(json);
             var response = client.GetServerStats(Test.Server1Endpoint);
-            var result = JsonConvert.DeserializeObject<GameServerStats>(response.Message);
             server.ClearDatabaseAndCache();
+            var result = JsonConvert.DeserializeObject<GameServerStats>(response.Message);
             result.ShouldBeEquivalentTo(stats);
         }
 
@@ -104,12 +104,34 @@ namespace StatServer.Tests
             SendServer2Info();
             SendServer3Info();
             var response = client.SendRequest().GetAllServersInfo();
+            server.ClearDatabaseAndCache();
             var result = JsonConvert.DeserializeObject<GameServerInfoResponse[]>(response.Message);
             var servers = new[] { new GameServerInfoResponse(Test.Server1Endpoint, Test.CreateGameServer1Info()),
                 new GameServerInfoResponse(Test.Server2Endpoint, Test.CreateGameServer2Info()),
                 new GameServerInfoResponse(Test.Server3Endpoint, Test.CreateGameServer3Info()) };
-            server.ClearDatabaseAndCache();
             result.ShouldBeEquivalentTo(servers);
+        }
+
+        [Test]
+        public void SendCorrectResponse_AfterClientSendingGetRecentMatches()
+        {
+            var match = Test.CreateGameMatchStats();
+            SendServer1Info();
+            var count = 3;
+            var timestamps = new DateTime[count];
+            for (var i = 0; i < count; i++)
+            {
+                timestamps[i] = new DateTime(2017, 3, i + 1, 10, 10, 0);
+                client.SendRequest().PutMatchStats(match, Test.Server1Endpoint, timestamps[i]);
+            }
+            var neededCount = 2;
+            var matches = new GameMatchResult[neededCount];
+            for (var i = 0; i < neededCount; i++)
+                matches[i] = new GameMatchResult(Test.Server1Endpoint, timestamps[i + neededCount - 1]) {Results = match};
+            var response = client.GetRecentMatches(neededCount);
+            server.ClearDatabaseAndCache();
+            var result = JsonConvert.DeserializeObject<GameMatchResult[]>(response.Message);
+            result.ShouldAllBeEquivalentTo(matches);
         }
 
         [TearDown]
