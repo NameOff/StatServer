@@ -25,19 +25,19 @@ namespace StatServer
         public GameServerInfo Info { get; set; }
 
         public int TotalPopulation { get; set; }
-        public Dictionary<string, int> PlayedGameModes { get; }
-        public Dictionary<string, int> PlayedMaps { get; }
+        public Dictionary<string, int> PlayedGameModes { get; set; }
+        public Dictionary<string, int> PlayedMaps { get; set; }
 
         public GameServerStats(string endpoint, string name, int totalMatchesPlayed,
-            int maximumPopulation, int totalPopulation, string encodedGameModes, string encodedMaps)
+            int maximumPopulation, int totalPopulation, Dictionary<string, int> modes, Dictionary<string, int> maps)
         {
             Endpoint = endpoint;
             Name = name;
             TotalMatchesPlayed = totalMatchesPlayed;
             MaximumPopulation = maximumPopulation;
             TotalPopulation = totalPopulation;
-            PlayedGameModes = Extensions.DecodeElements(encodedGameModes);
-            PlayedMaps = Extensions.DecodeElements(encodedMaps);
+            PlayedGameModes = modes;
+            PlayedMaps = maps;
             Top5Maps = GetTop5(PlayedMaps);
             Top5GameModes = GetTop5(PlayedGameModes);
         }
@@ -50,6 +50,11 @@ namespace StatServer
             PlayedMaps = new Dictionary<string, int>();
         }
 
+        public GameServerStats()
+        {
+            
+        }
+
         public void CalculateAverageData(DateTime firstMatchDate, DateTime lastMatchDate)
         {
             AverageMatchesPerDay = Extensions.CalculateAverage(TotalMatchesPlayed, firstMatchDate, lastMatchDate);
@@ -59,6 +64,8 @@ namespace StatServer
         public void Update(GameMatchResult match, Dictionary<DateTime, int> matchesPerDay)
         {
             TotalMatchesPlayed++;
+            var date = match.Timestamp.Date;
+            matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
             MaximumMatchesPerDay = matchesPerDay.Values.DefaultIfEmpty().Max();
             var population = match.Results.Scoreboard.Length;
             MaximumPopulation = MaximumPopulation < population ? population : MaximumPopulation;
@@ -82,6 +89,12 @@ namespace StatServer
         public string Serialize(params Field[] fields)
         {
             return Serialize(this, fields.Select(field => field.ToString()).ToArray());
+        }
+
+        public string SerializeForGetResponse()
+        {
+            return Serialize(Field.TotalMatchesPlayed, Field.MaximumMatchesPerDay, Field.AverageMatchesPerDay, 
+                Field.MaximumPopulation, Field.AveragePopulation, Field.Top5GameModes, Field.Top5Maps);
         }
     }
 }

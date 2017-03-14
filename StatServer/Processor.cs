@@ -210,16 +210,12 @@ namespace StatServer
             if (request.Method != HttpMethod.Get)
                 return new HttpResponse(HttpResponse.Status.MethodNotAllowed);
             var name = HttpUtility.UrlDecode(PlayerStatsPath.Match(request.Uri).Groups["playerName"].ToString());
-            if (!cache.Players.ContainsKey(name))
+            if (!cache.PlayersMatchesPerDay.ContainsKey(name))
                 return new HttpResponse(HttpResponse.Status.NotFound);
             var stats = database.GetPlayerStats(cache.PlayersStats[name]);
             if (cache.PlayersFirstMatchDate.ContainsKey(name))
                 stats.CalculateAverageData(cache.PlayersFirstMatchDate[name], cache.LastMatchDate);
-            var json = stats.Serialize(PlayerStats.Field.TotalMatchesPlayed, PlayerStats.Field.TotalMatchesWon,
-                PlayerStats.Field.FavoriteServer, PlayerStats.Field.UniqueServers, PlayerStats.Field.FavoriteGameMode,
-                PlayerStats.Field.AverageScoreboardPercent, PlayerStats.Field.MaximumMatchesPerDay,
-                PlayerStats.Field.AverageMatchesPerDay, PlayerStats.Field.LastMatchPlayed,
-                PlayerStats.Field.KillToDeathRatio);
+            var json = stats.SerializeForGetResponse();
             return new HttpResponse(HttpResponse.Status.OK, json);
         }
 
@@ -233,10 +229,7 @@ namespace StatServer
             var stats = database.GetGameServerStats(cache.GameServersStats[gameServerId]);
             if (cache.GameServersFirstMatchDate.ContainsKey(gameServerId))
                 stats.CalculateAverageData(cache.GameServersFirstMatchDate[gameServerId], cache.LastMatchDate);
-            var json = stats.Serialize(GameServerStats.Field.TotalMatchesPlayed,
-                GameServerStats.Field.MaximumMatchesPerDay, GameServerStats.Field.AverageMatchesPerDay,
-                GameServerStats.Field.MaximumPopulation, GameServerStats.Field.AveragePopulation,
-                GameServerStats.Field.Top5GameModes, GameServerStats.Field.Top5Maps);
+            var json = stats.SerializeForGetResponse();
             return new HttpResponse(HttpResponse.Status.OK, json);
         }
 
@@ -249,8 +242,6 @@ namespace StatServer
             var json = JsonConvert.SerializeObject(matches, Formatting.Indented, Serializable.Settings);
             return new HttpResponse(HttpResponse.Status.OK, json);
         }
-
-        
 
         public HttpResponse HandleBestPlayersRequest(HttpRequest request)
         {

@@ -47,6 +47,18 @@ namespace StatServer
                 tableRowsCount[table] = CalculateTableRowsCount(table);
         }
 
+        public void DropAllTables()
+        {
+            foreach (var table in Enum.GetValues(typeof(Table)))
+            {
+                var cmd = $"DROP TABLE {table}";
+                ExecuteQuery(cmd);
+            }
+            tableRowsCount.Clear();
+            foreach (var table in (Table[])Enum.GetValues(typeof(Table)))
+                tableRowsCount[table] = 0;
+        }
+
         private void Initialize()
         {
             if (File.Exists(DatabasePath))
@@ -203,7 +215,7 @@ namespace StatServer
 
         }
 
-        private void CreateAllTables()
+        public void CreateAllTables()
         {
             var commands = new[]
             {
@@ -410,7 +422,8 @@ namespace StatServer
         {
             var row = GetTableRowById(Table.GameServersStats, id);
             return new GameServerStats(row[1], row[2], int.Parse(row[3]),
-                int.Parse(row[4]), int.Parse(row[5]), row[6], row[7]);
+                int.Parse(row[4]), int.Parse(row[5]), 
+                Extensions.DecodeElements(row[6]), Extensions.DecodeElements(row[7]));
         }
 
         public PlayerStats GetPlayerStats(int id)

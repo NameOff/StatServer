@@ -5,8 +5,9 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using System.Net.Http;
 using Newtonsoft.Json;
-
+using System.Web;
 
 namespace StatServer.Tests
 {
@@ -107,7 +108,8 @@ namespace StatServer.Tests
 
         public HttpResponse GetPlayerStats(string name)
         {
-            var uri = $"players/{name}/stats";
+            var encodedName = HttpUtility.UrlEncode(name);
+            var uri = $"players/{encodedName}/stats";
             return SendGetRequest(uri);
         }
 

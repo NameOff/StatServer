@@ -20,7 +20,6 @@ namespace StatServer
         public Dictionary<string, Dictionary<DateTime, int>> GameServersMatchesPerDay { get; set; }
         public Dictionary<string, Dictionary<DateTime, int>> PlayersMatchesPerDay { get; set; }
         public List<GameMatchResult> RecentMatches { get; set; }
-        public List<PlayerStats> BestPlayers { get; set; }
 
         public Cache(Database database)
         {

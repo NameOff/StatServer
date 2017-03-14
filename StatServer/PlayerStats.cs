@@ -28,8 +28,8 @@ namespace StatServer
 
         public int TotalKills { get; set; }
         public int TotalDeaths { get; set; }
-        public Dictionary<string, int> PlayedModes { get; }
-        public Dictionary<string, int> PlayedServers { get; }
+        public Dictionary<string, int> PlayedModes { get; set; }
+        public Dictionary<string, int> PlayedServers { get; set; }
 
         public PlayerStats(string name, int totalMatchesPlayed, int totalMatchesWon, Dictionary<string, int> servers,
             Dictionary<string, int> modes, double averageScoreboardPercent, 
@@ -42,9 +42,27 @@ namespace StatServer
             PlayedModes = modes;
             AverageScoreboardPercent = averageScoreboardPercent;
             LastMatchPlayed = lastMatchPlayed;
+            FavoriteServer = CalculateFavoriteServer(servers);
+            FavoriteGameMode = CalculateFavoriteMode(modes);
             TotalKills = totalKills;
             TotalDeaths = totalDeaths;
-            KillToDeathRatio = CalculateKillToDeathRatio(TotalKills, TotalDeaths);
+            if (TotalDeaths != 0)
+                KillToDeathRatio = CalculateKillToDeathRatio(TotalKills, TotalDeaths);
+        }
+
+        private  string CalculateFavoriteServer(Dictionary<string, int> servers)
+        {
+            return servers.Keys.OrderByDescending(key => servers[key]).First();
+        }
+
+        private string CalculateFavoriteMode(Dictionary<string, int> modes)
+        {
+            return modes.Keys.OrderByDescending(mode => modes[mode]).First();
+        }
+
+        public PlayerStats()
+        {
+            
         }
 
         public PlayerStats(string name)
@@ -86,11 +104,11 @@ namespace StatServer
             AverageScoreboardPercent = (AverageScoreboardPercent * TotalMatchesPlayed + scoreboardPercent) / ++TotalMatchesPlayed;
             var mode = match.Results.GameMode;
             var server = match.Server;
-            var date = match.Timestamp;
+            var date = match.Timestamp.Date;
             PlayedModes[mode] = PlayedModes.ContainsKey(mode) ? PlayedModes[mode] + 1 : 1;
             PlayedServers[server] = PlayedServers.ContainsKey(server) ? PlayedServers[server] + 1 : 1;
-            FavoriteServer = PlayedServers.Keys.OrderByDescending(key => PlayedServers[key]).First();
-            FavoriteGameMode = PlayedModes.Keys.OrderByDescending(key => PlayedModes[key]).First();
+            FavoriteServer = CalculateFavoriteServer(PlayedServers);
+            FavoriteGameMode = CalculateFavoriteMode(PlayedModes);
             UniqueServers = PlayedServers.Keys.Count;
             matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
             MaximumMatchesPerDay = matchesPerDay.Values.DefaultIfEmpty().Max();
@@ -98,11 +116,20 @@ namespace StatServer
             TotalKills += playerResult.Kills;
             TotalDeaths += playerResult.Deaths;
             KillToDeathRatio = CalculateKillToDeathRatio(TotalKills, TotalDeaths);
+            if (LastMatchPlayed < match.Timestamp)
+                LastMatchPlayed = match.Timestamp;
         }
 
         public string Serialize(params Field[] fields)
         {
             return Serialize(this, fields.Select(field => field.ToString()).ToArray());
+        }
+
+        public string SerializeForGetResponse()
+        {
+            return Serialize(Field.TotalMatchesPlayed, Field.TotalMatchesWon, Field.FavoriteServer, 
+                Field.UniqueServers, Field.FavoriteGameMode, Field.AverageScoreboardPercent, 
+                Field.MaximumMatchesPerDay, Field.AverageMatchesPerDay, Field.LastMatchPlayed, Field.KillToDeathRatio);
         }
 
         public void CalculateAverageData(DateTime firstMatchDate, DateTime lastMatchDate)

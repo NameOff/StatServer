@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Data;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -26,13 +27,17 @@ namespace StatServer
             Database = new Database();
             Cache = new Cache(Database);
             processor = new Processor(Database, Cache);
+            Database.Connection.Close();
         }
 
         public void ClearDatabaseAndCache()
         {
-            File.Delete(Database.DatabasePath);
-            Database = new Database();
+            if (Database.Connection.State == ConnectionState.Closed)
+                Database.Connection.Open();
+            Database.DropAllTables();
+            Database.CreateAllTables();
             Cache = new Cache(Database);
+            Database.Connection.Close();
         }
 
         public void Stop()
@@ -40,18 +45,30 @@ namespace StatServer
             isListening = false;
             listener.Stop();
             listener.Close();
+            Database.Connection.Close();
         }
 
         public void Start(string prefix)
         {
             listener.Prefixes.Add(prefix);
             listener.Start();
-
+            Database.Connection.Open();
             isListening = true;
             while (isListening)
             {
-                var context = listener.GetContext();
-                HandleRequest(context);
+                try
+                {
+                    var context = listener.GetContext();
+                    HandleRequest(context);
+                }
+                catch (ObjectDisposedException)
+                {
+                    break;
+                }
+                catch (HttpListenerException)
+                {
+                    break;
+                }
             }
         }
 
@@ -117,7 +134,7 @@ namespace StatServer
 
         public void Dispose()
         {
-            ((IDisposable) listener)?.Dispose();
+            ((IDisposable)listener)?.Dispose();
         }
     }
 }
