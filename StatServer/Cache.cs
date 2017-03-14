@@ -15,7 +15,7 @@ namespace StatServer
         public Dictionary<GameMatchResult, int> GameMatches { get; set; }
         public Dictionary<string, DateTime> GameServersFirstMatchDate { get; set; }
         public Dictionary<string, DateTime> PlayersFirstMatchDate { get; set; }
-        public Dictionary<string, int> GameServersStats { get; set; }
+        public Dictionary<string, GameServerStats> GameServersStats { get; set; }
         public Dictionary<string, int> PlayersStats { get; set; }
         public Dictionary<string, Dictionary<DateTime, int>> GameServersMatchesPerDay { get; set; }
         public Dictionary<string, Dictionary<DateTime, int>> PlayersMatchesPerDay { get; set; }
@@ -26,7 +26,7 @@ namespace StatServer
             Players = database.CreatePlayersDictionary();
             GameMatches = database.CreateGameMatchDictionary();
             GameServersInformation = database.CreateGameServersDictionary();
-            GameServersStats = database.CreateGameServersStatsDictionary();
+            GameServersStats = new Dictionary<string, GameServerStats>();
             PlayersStats = database.CreatePlayersStatsDictionary();
             GameServersFirstMatchDate = new Dictionary<string, DateTime>();
             GameServersMatchesPerDay = new Dictionary<string, Dictionary<DateTime, int>>();

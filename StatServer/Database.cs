@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
@@ -17,7 +16,6 @@ namespace StatServer
             ServersInformation,
             GameMatchPlayersResults,
             GameMatchStats,
-            GameServersStats,
             PlayersStats
         }
 
@@ -36,8 +34,6 @@ namespace StatServer
                 [Table.GameMatchPlayersResults] = new[] { "name", "frags", "kills", "deaths" },
                 [Table.GameMatchStats] = new[] { "map", "game_mode", "frag_limit", "time_limit",
                     "time_elapsed", "scoreboard", "server", "timestamp" },
-                [Table.GameServersStats] = new[] { "endpoint", "name" , "total_matches_played",
-                    "maximum_population", "total_population", "game_modes", "maps" },
                 [Table.PlayersStats] = new[] { "name", "total_matches_played", "total_matches_won", "servers",
                     "game_modes", "average_scoreboard_percent", "last_match_played", "total_kills", "total_deaths" }
             };
@@ -83,6 +79,25 @@ namespace StatServer
             return playersStats;
         }
 
+        public Dictionary<string, GameServerStats> CreateGameServersStatsDictionary(Dictionary<string, Dictionary<DateTime, int>> serversMatchesPerDay)
+        {
+            var allServers = GetAllRows(Table.ServersInformation)
+                .Select(row => new GameServerInfoResponse(row[3], new GameServerInfo(row[1], row[2])));
+            var serversStats = new Dictionary<string, GameServerStats>();
+            foreach (var server in allServers)
+                serversStats[server.Endpoint] = new GameServerStats(server.Endpoint, server.Info.Name) { Info = server.Info };
+            var allMatches = GetAllRows(Table.GameMatchStats);
+            foreach (var row in allMatches)
+            {
+                var endpoint = row[7];
+                var timestamp = Extensions.ParseTimestamp(row[8]);
+                var match = ParseGameMatchStats(row);
+                var matchResult = new GameMatchResult(endpoint, timestamp) { Results = match };
+                serversStats[endpoint].Update(matchResult, serversMatchesPerDay[row[7]]);
+            }
+            return serversStats;
+        }
+
         public Dictionary<string, double> CreatePlayersDictionary()
         {
             var players = new Dictionary<string, double>();
@@ -105,15 +120,6 @@ namespace StatServer
         {
             foreach (var command in commands)
                 new SQLiteCommand(command, Connection).ExecuteNonQuery();
-        }
-
-        public Dictionary<string, int> CreateGameServersStatsDictionary()
-        {
-            var rows = GetAllRows(Table.GameServersStats);
-            var result = new Dictionary<string, int>();
-            foreach (var row in rows)
-                result[row[1]] = int.Parse(row[0]);
-            return result;
         }
 
         public void SetDateTimeDictionaries(Cache cache)
@@ -246,17 +252,6 @@ namespace StatServer
                         'server' TEXT NOT NULL,
                         'timestamp' TEXT NOT NULL
                     )",
-                @"CREATE TABLE 'GameServersStats'
-                    (
-                        'id' INTEGER PRIMARY KEY AUTOINCREMENT,
-                        'endpoint' TEXT NOT NULL,
-                        'name' TEXT NOT NULL,
-                        'total_matches_played' INTEGER,
-                        'maximum_population' INTEGER,
-                        'total_population' INTEGER,
-                        'game_modes' TEXT NOT NULL,
-                        'maps' TEXT NOT NULL
-                    )",
                 @"CREATE TABLE 'PlayersStats'
                     (
                         'id' INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -312,21 +307,6 @@ namespace StatServer
                 Tuple.Create("total_deaths", (object)stats.TotalDeaths)
             };
             var cmd = CreateUpdateQuery(Table.PlayersStats, id, fields);
-            ExecuteQuery(cmd);
-        }
-
-        public void UpdateGameServerStats(int id, GameServerStats stats)
-        {
-            var fields = new[]
-            {
-                Tuple.Create("endpoint", (object) stats.Endpoint), Tuple.Create("name", (object) stats.Name),
-                Tuple.Create("total_matches_played", (object) stats.TotalMatchesPlayed),
-                Tuple.Create("maximum_population", (object) stats.MaximumPopulation),
-                Tuple.Create("total_population", (object) stats.TotalPopulation),
-                Tuple.Create("game_modes", (object) Extensions.EncodeElements(stats.PlayedGameModes)),
-                Tuple.Create("maps", (object) Extensions.EncodeElements(stats.PlayedMaps))
-            };
-            var cmd = CreateUpdateQuery(Table.GameServersStats, id, fields);
             ExecuteQuery(cmd);
         }
 
@@ -408,22 +388,6 @@ namespace StatServer
         {
             var data = GetTableRowById(Table.GameMatchPlayersResults, id);
             return new PlayerInfo(data[1], int.Parse(data[2]), int.Parse(data[3]), int.Parse(data[4]));
-        }
-
-        public int InsertGameServerStats(GameServerStats stats)
-        {
-            InsertInto(Table.GameServersStats, stats.Endpoint, stats.Name, stats.TotalMatchesPlayed,
-                stats.MaximumPopulation, stats.TotalPopulation, Extensions.EncodeElements(stats.PlayedGameModes),
-                Extensions.EncodeElements(stats.PlayedMaps));
-            return tableRowsCount[Table.GameServersStats];
-        }
-
-        public GameServerStats GetGameServerStats(int id)
-        {
-            var row = GetTableRowById(Table.GameServersStats, id);
-            return new GameServerStats(row[1], row[2], int.Parse(row[3]),
-                int.Parse(row[4]), int.Parse(row[5]), 
-                Extensions.DecodeElements(row[6]), Extensions.DecodeElements(row[7]));
         }
 
         public PlayerStats GetPlayerStats(int id)

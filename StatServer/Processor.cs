@@ -71,13 +71,16 @@ namespace StatServer
                 {
                     var info = JsonConvert.DeserializeObject<GameServerInfo>(request.Json, Serializable.Settings);
                     if (cache.GameServersInformation.ContainsKey(gameServerId))
+                    {
                         database.UpdateGameServerInfo(cache.GameServersInformation[gameServerId], info, gameServerId);
+                        cache.GameServersStats[gameServerId].Name = info.Name;
+                        cache.GameServersStats[gameServerId].Info = info;
+                    }
                     else
                     {
                         var id = database.InsertServerInformation(info, gameServerId);
                         cache.GameServersInformation[gameServerId] = id;
-                        var statsId = database.InsertGameServerStats(new GameServerStats(gameServerId, info.Name));
-                        cache.GameServersStats[gameServerId] = statsId;
+                        cache.GameServersStats[gameServerId] = new GameServerStats(gameServerId, info.Name);
                     }
                     return new HttpResponse(HttpResponse.Status.OK);
                 }
@@ -112,9 +115,12 @@ namespace StatServer
             {
                 Stopwatch a = new Stopwatch();
                 a.Start();
-                PutGameMatchResult(request.Json, matchInfo, date);
+
+                PutGameMatchResult(request.Json, matchInfo);
+
                 a.Stop();
                 Console.WriteLine($"PUT запрос статистики матча. Общее время: {a.Elapsed}");
+
                 return new HttpResponse(HttpResponse.Status.OK);
             }
 
@@ -122,57 +128,58 @@ namespace StatServer
             {
                 Stopwatch a = new Stopwatch();
                 a.Start();
+
                 if (!cache.GameMatches.ContainsKey(matchInfo))
                     return new HttpResponse(HttpResponse.Status.NotFound);
                 var stats = database.GetGameMatchStats(cache.GameMatches[matchInfo]);
                 var json = JsonConvert.SerializeObject(stats, Formatting.Indented, Serializable.Settings);
+
                 a.Stop();
                 Console.WriteLine($"GET запрос статистики матча. Общее время: {a.Elapsed}");
+
                 return new HttpResponse(HttpResponse.Status.OK, json);
             }
 
             return new HttpResponse(HttpResponse.Status.MethodNotAllowed);
         }
 
-        private void PutGameMatchResult(string json, GameMatchResult matchInfo, DateTime date)
+        private void PutGameMatchResult(string json, GameMatchResult matchInfo)
         {
+            var date = matchInfo.Timestamp;
             UpdateLastDate(date);
             var matchStats = JsonConvert.DeserializeObject<GameMatchStats>(json, Serializable.Settings);
             matchInfo.Results = matchStats;
             var id = database.InsertGameMatchStats(matchInfo);
+            var players = matchStats.Scoreboard.Select(playerInfo => playerInfo.Name).ToArray();
+            AddOrdUpdateFirstMatchDate(date, matchInfo.Server, players);
             cache.RecentMatches.Add(matchInfo);
             cache.UpdateRecentMatches();
             cache.GameMatches[matchInfo] = id;
+
             var a = new Stopwatch();
             a.Start();
-            foreach (var player in matchStats.Scoreboard)
-                AddOrUpdatePlayersStats(player.Name, matchInfo);
-            var serverName = database.GetServerInformation(cache.GameServersInformation[matchInfo.Server]).Name;
-            AddOrUpdateGameServerStats(serverName, matchInfo);
+
+            foreach (var player in players)
+                AddOrUpdatePlayersStats(player, matchInfo);
+            if (!cache.GameServersMatchesPerDay.ContainsKey(matchInfo.Server))
+                cache.GameServersMatchesPerDay[matchInfo.Server] = new Dictionary<DateTime, int>();
+            cache.GameServersStats[matchInfo.Server].Update(matchInfo, cache.GameServersMatchesPerDay[matchInfo.Server]);
+            
+
             a.Stop();
             Console.WriteLine($"PUT запрос статистики матча. БД: {a.Elapsed}");
         }
 
-        private void AddOrUpdateGameServerStats(string name, GameMatchResult matchResult)
+        private void AddOrdUpdateFirstMatchDate(DateTime date, string endpoint, string[] players)
         {
-            var gameServerId = matchResult.Server;
-            var stats = cache.GameServersStats.ContainsKey(gameServerId)
-                ? database.GetGameServerStats(cache.GameServersStats[gameServerId])
-                : new GameServerStats(gameServerId, name);
+            date = date.Date;
+            if (!cache.GameServersFirstMatchDate.ContainsKey(endpoint) || cache.GameServersFirstMatchDate[endpoint] > date)
+                cache.GameServersFirstMatchDate[endpoint] = date;
 
-            if (!cache.GameServersMatchesPerDay.ContainsKey(gameServerId))
-                cache.GameServersMatchesPerDay[gameServerId] = new Dictionary<DateTime, int>();
-            stats.Update(matchResult, cache.GameServersMatchesPerDay[gameServerId]);
-
-            if (cache.GameServersStats.ContainsKey(gameServerId))
+            foreach (var player in players)
             {
-                var id = cache.GameServersStats[gameServerId];
-                database.UpdateGameServerStats(id, stats);
-            }
-            else
-            {
-                var id = database.InsertGameServerStats(stats);
-                cache.GameServersStats[gameServerId] = id;
+                if (!cache.PlayersFirstMatchDate.ContainsKey(player) || cache.PlayersFirstMatchDate[player] > date)
+                    cache.PlayersFirstMatchDate[player] = date;
             }
         }
 
@@ -226,7 +233,7 @@ namespace StatServer
             var gameServerId = GameServerStatsPath.Match(request.Uri).Groups["gameServerId"].ToString();
             if (!cache.GameServersStats.ContainsKey(gameServerId))
                 return new HttpResponse(HttpResponse.Status.NotFound);
-            var stats = database.GetGameServerStats(cache.GameServersStats[gameServerId]);
+            var stats = cache.GameServersStats[gameServerId];
             if (cache.GameServersFirstMatchDate.ContainsKey(gameServerId))
                 stats.CalculateAverageData(cache.GameServersFirstMatchDate[gameServerId], cache.LastMatchDate);
             var json = stats.SerializeForGetResponse();

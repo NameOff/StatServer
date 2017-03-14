@@ -66,10 +66,12 @@ namespace StatServer.Tests
 
         public static GameServerStats CreateGameServerStats()
         {
-            var match = Test.CreateGameMatchStats();
+            var match = CreateGameMatchStats();
             var modes = new Dictionary<string, int> { [match.GameMode] = 1 };
             var maps = new Dictionary<string, int> { [match.Map] = 1 };
-            return new GameServerStats(Server1Endpoint, Server1Name, 1, 5, 5, modes, maps);
+            var stats = new GameServerStats(Server1Endpoint, Server1Name, 1, 5, 5, modes, maps) { MaximumMatchesPerDay = 1 };
+            stats.CalculateAverageData(Timestamp1, Timestamp1);
+            return stats;
         }
 
         public static PlayerStats CreatePlayerStats()
@@ -78,7 +80,9 @@ namespace StatServer.Tests
             var playedServers = new Dictionary<string, int> { [Server1Endpoint] = 1 };
             var playedModes = new Dictionary<string, int> { [GameModeDM] = 1 };
             var scoreboardPercent = 3.0 / 4 * 100;
-            return new PlayerStats(PlayerNameOff, 1, 0, playedServers, playedModes, scoreboardPercent, Timestamp1, 39, 23);
+            var stats = new PlayerStats(PlayerNameOff, 1, 0, playedServers, playedModes, scoreboardPercent, Timestamp1, 39, 23);
+            stats.CalculateAverageData(Timestamp1, Timestamp1);
+            return stats;
         }
     }
 }
