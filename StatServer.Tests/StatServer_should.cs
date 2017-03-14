@@ -113,7 +113,7 @@ namespace StatServer.Tests
         }
 
         [Test]
-        public void SendCorrectResponse_AfterClientSendingGetRecentMatches()
+        public void SendCorrectResponse_AfterClientSendingGetRecentMatchesRequest()
         {
             var match = Test.CreateGameMatchStats();
             SendServer1Info();
@@ -132,6 +132,30 @@ namespace StatServer.Tests
             server.ClearDatabaseAndCache();
             var result = JsonConvert.DeserializeObject<GameMatchResult[]>(response.Message);
             result.ShouldAllBeEquivalentTo(matches);
+        }
+
+        [Test]
+        public void SendCorrectResponse_AfterClientSendingGetBestPlayersRequest()
+        {
+            SendServer1Info();
+            var match = Test.CreateGameMatchStats();
+            var count = 10;
+            var timestamps = new DateTime[count];
+            for (var i = 0; i < count; i++)
+            {
+                timestamps[i] = new DateTime(2017, 3, i + 1, 10, 10, 0);
+                client.SendRequest().PutMatchStats(match, Test.Server1Endpoint, timestamps[i]);
+            }
+            var response = client.SendRequest().GetBestPlayers(3);
+            server.ClearDatabaseAndCache();
+            var result = JsonConvert.DeserializeObject<PlayerStats[]>(response.Message);
+            var playerQoter = new PlayerStats(Test.PlayerQoter, match.Scoreboard[0].Kills / (double)match.Scoreboard[0].Deaths);
+            var playerSnoward = new PlayerStats(Test.PlayerSnoward, match.Scoreboard[2].Kills / (double)match.Scoreboard[2].Deaths);
+            var playerNameOff = new PlayerStats(Test.PlayerNameOff, match.Scoreboard[1].Kills / (double)match.Scoreboard[1].Deaths);
+            var playersStats = new[] {playerQoter, playerSnoward, playerNameOff };
+            var json = Extensions.SerializeTopPlayers(playersStats);
+            var bestPlayers = JsonConvert.DeserializeObject<PlayerStats[]>(json);
+            result.ShouldBeEquivalentTo(bestPlayers);
         }
 
         [TearDown]
