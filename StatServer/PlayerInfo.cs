@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-
 namespace StatServer
 {
     public class PlayerInfo

@@ -8,16 +8,12 @@ namespace StatServer
 {
     public static class Extensions
     {
-        public const int MaxCount = 50;
-        public const int MinCount = 0;
-        public const int DefaultCount = 5;
-
         private static int AdjustCount(int count)
         {
-            if (count > MaxCount)
-                return MaxCount;
-            if (count < MinCount)
-                return MinCount;
+            if (count > StatServer.ReportStatsMaxCount)
+                return StatServer.ReportStatsMaxCount;
+            if (count < StatServer.ReportStatsMinCount)
+                return StatServer.ReportStatsMinCount;
             return count;
         }
 
@@ -36,19 +32,19 @@ namespace StatServer
         {
             var array = servers.Select(server => new Dictionary<string, object>
             {
-                ["endpoint"] = server.Endpoint,
-                ["name"] = server.Name,
-                ["averageMatchesPerDay"] = server.AverageMatchesPerDay
+                [GameServerStats.Field.Endpoint.ToString()] = server.Endpoint,
+                [GameServerStats.Field.Name.ToString()] = server.Name,
+                [GameServerStats.Field.AverageMatchesPerDay.ToString()] = server.AverageMatchesPerDay
             })
             .ToArray();
-            return JsonConvert.SerializeObject(array, Formatting.Indented);
+            return JsonConvert.SerializeObject(array, Formatting.Indented, Serializable.Settings);
         }
 
         public static int StringCountToInt(string count)
         {
             int result;
             var isParsed = int.TryParse(count, out result);
-            return isParsed ? AdjustCount(result) : DefaultCount;
+            return isParsed ? AdjustCount(result) : StatServer.ReportStatsDefaultCount;
         }
 
         public static DateTime ParseTimestamp(string timestamp)

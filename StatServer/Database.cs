@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
@@ -9,7 +10,7 @@ namespace StatServer
     public class Database
     {
         public const string DatabaseName = "statistics.sqlite";
-        public string DatabasePath => AppDomain.CurrentDomain.BaseDirectory + '\\' + DatabaseName; //todo path join
+        public static readonly string DatabasePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DatabaseName);
 
         public enum Table
         {
@@ -19,28 +20,31 @@ namespace StatServer
             PlayersStats
         }
 
-        private readonly Dictionary<Table, string[]> tableFields;
-        private readonly Dictionary<Table, int> tableRowsCount;
-        public SQLiteConnection Connection;
-
-
+        private static readonly Dictionary<Table, string[]> tableFields = new Dictionary<Table, string[]>
+        {
+            [Table.ServersInformation] = new[] { "name", "game_modes", "endpoint" },
+            [Table.GameMatchPlayersResults] = new[] { "name", "frags", "kills", "deaths" },
+            [Table.GameMatchStats] = new[] { "map", "game_mode", "frag_limit", "time_limit",
+                    "time_elapsed", "scoreboard", "server", "timestamp" },
+            [Table.PlayersStats] = new[] { "name", "total_matches_played", "total_matches_won", "servers",
+                    "game_modes", "average_scoreboard_percent", "last_match_played", "total_kills", "total_deaths" }
+        };
+        private readonly ConcurrentDictionary<Table, int> tableRowsCount;        
 
         public Database()
         {
             Initialize();
-            tableFields = new Dictionary<Table, string[]>
-            {
-                [Table.ServersInformation] = new[] { "name", "game_modes", "endpoint" },
-                [Table.GameMatchPlayersResults] = new[] { "name", "frags", "kills", "deaths" },
-                [Table.GameMatchStats] = new[] { "map", "game_mode", "frag_limit", "time_limit",
-                    "time_elapsed", "scoreboard", "server", "timestamp" },
-                [Table.PlayersStats] = new[] { "name", "total_matches_played", "total_matches_won", "servers",
-                    "game_modes", "average_scoreboard_percent", "last_match_played", "total_kills", "total_deaths" }
-            };
-
-            tableRowsCount = new Dictionary<Table, int>();
+            tableRowsCount = new ConcurrentDictionary<Table, int>();
             foreach (var table in (Table[])Enum.GetValues(typeof(Table)))
                 tableRowsCount[table] = CalculateTableRowsCount(table);
+        }
+
+        private void EnableWAL(SQLiteConnection connection)
+        {
+            var query1 = "PRAGMA journal_mode = WAL";
+            var query2 = "PRAGMA synchronous = NORMAL";
+            new SQLiteCommand(query1, connection).ExecuteNonQuery();
+            new SQLiteCommand(query2, connection).ExecuteNonQuery();
         }
 
         public void DropAllTables()
@@ -59,31 +63,29 @@ namespace StatServer
         {
             if (File.Exists(DatabasePath))
             {
-                Connection = new SQLiteConnection($"Data Source = {DatabasePath}; Version=3;");
-                Connection.Open();
                 return;
             }
 
             SQLiteConnection.CreateFile(DatabasePath);
-            Connection = new SQLiteConnection($"Data Source = {DatabasePath}; Version=3;");
-            Connection.Open();
             CreateAllTables();
         }
 
-        public Dictionary<string, int> CreatePlayersStatsDictionary()
+        private static SQLiteConnection CreateConnection() => new SQLiteConnection($"Data Source = {DatabasePath}; Version=3;");
+
+        public ConcurrentDictionary<string, int> CreatePlayersStatsDictionary()
         {
-            var playersStats = new Dictionary<string, int>();
+            var playersStats = new ConcurrentDictionary<string, int>();
             var rows = GetAllRows(Table.PlayersStats);
             foreach (var row in rows)
                 playersStats[row[1]] = int.Parse(row[0]);
             return playersStats;
         }
 
-        public Dictionary<string, GameServerStats> CreateGameServersStatsDictionary(Dictionary<string, Dictionary<DateTime, int>> serversMatchesPerDay)
+        public ConcurrentDictionary<string, GameServerStats> CreateGameServersStatsDictionary(ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> serversMatchesPerDay)
         {
             var allServers = GetAllRows(Table.ServersInformation)
                 .Select(row => new GameServerInfoResponse(row[3], new GameServerInfo(row[1], row[2])));
-            var serversStats = new Dictionary<string, GameServerStats>();
+            var serversStats = new ConcurrentDictionary<string, GameServerStats>();
             foreach (var server in allServers)
                 serversStats[server.Endpoint] = new GameServerStats(server.Endpoint, server.Info.Name) { Info = server.Info };
             var allMatches = GetAllRows(Table.GameMatchStats);
@@ -102,13 +104,14 @@ namespace StatServer
                 serversStats[endpoint].Update(matchResult, serversMatchesPerDay[row[7]]);
             }
             foreach (var stats in serversStats.Values)
-                stats.CalculateAverageData(serverFirstMatchDate[stats.Endpoint], lastMatch);
+                if (serverFirstMatchDate.ContainsKey(stats.Endpoint))
+                    stats.CalculateAverageData(serverFirstMatchDate[stats.Endpoint], lastMatch);
             return serversStats;
         }
 
-        public Dictionary<string, double> CreatePlayersDictionary()
+        public ConcurrentDictionary<string, double> CreatePlayersDictionary()
         {
-            var players = new Dictionary<string, double>();
+            var players = new ConcurrentDictionary<string, double>();
             var rows = GetAllRows(Table.PlayersStats);
             foreach (var row in rows)
             {
@@ -126,8 +129,18 @@ namespace StatServer
 
         private void ExecuteQuery(params string[] commands)
         {
-            foreach (var command in commands)
-                new SQLiteCommand(command, Connection).ExecuteNonQuery();
+            using (var connection = CreateConnection())
+            {
+                connection.Open();
+                EnableWAL(connection);
+                var command = new SQLiteCommand(connection);
+                foreach (var cmd in commands)
+                {
+                    command.CommandText = cmd;
+                    command.ExecuteNonQuery();
+                }
+            }
+
         }
 
         public void SetDateTimeDictionaries(Cache cache)
@@ -141,7 +154,7 @@ namespace StatServer
                     cache.LastMatchDate = date;
                 var match = ParseGameMatchStats(row);
                 cache.RecentMatches.Add(new GameMatchResult(server, date) { Results = match });
-                if (cache.RecentMatches.Count >= Extensions.MaxCount * 10)
+                if (cache.RecentMatches.Count >= StatServer.ReportStatsDefaultCount * 10)
                     cache.UpdateRecentMatches();
                 if (!cache.GameServersFirstMatchDate.ContainsKey(server) || cache.GameServersFirstMatchDate[server] > date)
                     cache.GameServersFirstMatchDate[server] = date;
@@ -152,62 +165,50 @@ namespace StatServer
                     if (!cache.PlayersFirstMatchDate.ContainsKey(player.Name) || cache.PlayersFirstMatchDate[player.Name] > date)
                         cache.PlayersFirstMatchDate[player.Name] = date;
                     if (!cache.PlayersMatchesPerDay.ContainsKey(player.Name))
-                        cache.PlayersMatchesPerDay[player.Name] = new Dictionary<DateTime, int>();
+                        cache.PlayersMatchesPerDay[player.Name] = new ConcurrentDictionary<DateTime, int>();
                     var playerMatches = cache.PlayersMatchesPerDay[player.Name];
                     playerMatches[date] = playerMatches.ContainsKey(date) ? playerMatches[date] + 1 : 1;
                 }
                 if (!cache.GameServersMatchesPerDay.ContainsKey(server))
-                    cache.GameServersMatchesPerDay[server] = new Dictionary<DateTime, int>();
+                    cache.GameServersMatchesPerDay[server] = new ConcurrentDictionary<DateTime, int>();
                 var gameServerMatches = cache.GameServersMatchesPerDay[server];
                 gameServerMatches[date] = gameServerMatches.ContainsKey(date) ? gameServerMatches[date] + 1 : 1;
             }
             cache.UpdateRecentMatches();
         }
 
-        public Dictionary<string, DateTime> CreatePlayersFirstMatchDate()
-        {
-            var result = new Dictionary<string, DateTime>();
-            var rows = GetAllRows(Table.GameMatchStats);
-            foreach (var row in rows)
-            {
-                var ids = ParseIds(row[6]);
-                var players = GetPlayerInfo(ids);
-                var date = Extensions.ParseTimestamp(row[8]);
-                foreach (var player in players)
-                {
-                    if (!result.ContainsKey(player.Name) || result[player.Name] > date)
-                        result[player.Name] = date;
-                }
-            }
-            return result;
-        }
-
         private string[] GetTableRowById(Table table, int id)
         {
             var command = CreateSelectRowRequest(table, id);
-            var cmd = new SQLiteCommand(command, Connection);
-            using (var reader = cmd.ExecuteReader())
+            using (var connection = CreateConnection())
             {
-                reader.Read();
-                return GetValuesFrom(reader);
+                connection.Open();
+                var cmd = new SQLiteCommand(command, connection);
+                using (var reader = cmd.ExecuteReader())
+                {
+                    reader.Read();
+                    return GetValuesFrom(reader);
+                }
             }
-
         }
 
         public IEnumerable<string[]> GetAllRows(Table table)
         {
             var rowsCount = GetRowsCount(table);
-            for (var id = 1; id <= rowsCount; id++)
+            using (var connection = CreateConnection())
             {
-                var command = CreateSelectRowRequest(table, id);
-                var cmd = new SQLiteCommand(command, Connection);
-                using (var reader = cmd.ExecuteReader())
+                connection.Open();
+                for (var id = 1; id <= rowsCount; id++)
                 {
-                    reader.Read();
-                    yield return GetValuesFrom(reader);
+                    var command = CreateSelectRowRequest(table, id);
+                    var cmd = new SQLiteCommand(command, connection);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        reader.Read();
+                        yield return GetValuesFrom(reader);
+                    }
                 }
             }
-
         }
 
         private string CreateSelectRowRequest(Table table, int id) => $"SELECT * FROM {table} WHERE id = {id};";
@@ -227,7 +228,11 @@ namespace StatServer
         private int CalculateTableRowsCount(Table table)
         {
             var command = $"SELECT COUNT(id) FROM {table}";
-            return int.Parse(new SQLiteCommand(command, Connection).ExecuteScalar().ToString());
+            using (var connection = CreateConnection())
+            {
+                connection.Open();
+                return int.Parse(new SQLiteCommand(command, connection).ExecuteScalar().ToString());
+            }
 
         }
 
@@ -279,8 +284,6 @@ namespace StatServer
             ExecuteQuery(commands);
         }
 
-
-
         private string CreateInsertQuery(Table table, params object[] values)
         {
             var fieldsAndValues = FieldsAndValuesToString(table, values);
@@ -307,7 +310,8 @@ namespace StatServer
         {
             var fields = new[]
             {
-                Tuple.Create("name", (object)stats.Name), Tuple.Create("total_matches_played", (object)stats.TotalMatchesPlayed),
+                Tuple.Create("name", (object)stats.Name),
+                Tuple.Create("total_matches_played", (object)stats.TotalMatchesPlayed),
                 Tuple.Create("total_matches_won", (object)stats.TotalMatchesWon),
                 Tuple.Create("servers", (object)Extensions.EncodeElements(stats.PlayedServers)),
                 Tuple.Create("game_modes", (object)Extensions.EncodeElements(stats.PlayedModes)),
@@ -345,18 +349,18 @@ namespace StatServer
             return tableRowsCount[Table.ServersInformation];
         }
 
-        public Dictionary<string, int> CreateGameServersDictionary()
+        public ConcurrentDictionary<string, int> CreateGameServersDictionary()
         {
-            var gameServers = new Dictionary<string, int>();
+            var gameServers = new ConcurrentDictionary<string, int>();
             var rows = GetAllRows(Table.ServersInformation);
             foreach (var row in rows)
                 gameServers[row[3]] = int.Parse(row[0]);
             return gameServers;
         }
 
-        public Dictionary<GameMatchResult, int> CreateGameMatchDictionary()
+        public ConcurrentDictionary<GameMatchResult, int> CreateGameMatchDictionary()
         {
-            var gameMatches = new Dictionary<GameMatchResult, int>();
+            var gameMatches = new ConcurrentDictionary<GameMatchResult, int>();
             var rows = GetAllRows(Table.GameMatchStats);
             foreach (var row in rows)
             {
@@ -366,19 +370,6 @@ namespace StatServer
                 gameMatches[new GameMatchResult(server, timestamp)] = id;
             }
             return gameMatches;
-        }
-
-        public GameServerInfo GetServerInformation(int id)
-        {
-            var values = GetTableRowById(Table.ServersInformation, id);
-            return new GameServerInfo(values[1], values[2]);
-        }
-
-        public IEnumerable<GameServerInfoResponse> GetAllGameServerInformation()
-        {
-            var rows = GetAllRows(Table.ServersInformation);
-            foreach (var row in rows)
-                yield return new GameServerInfoResponse(row[3], new GameServerInfo(row[1], row[2]));
         }
 
         public int InsertGameMatchStats(GameMatchResult info)

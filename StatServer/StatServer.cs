@@ -1,9 +1,11 @@
 ﻿using System;
-using System.Data;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Text;
 using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 using static System.String;
 
 namespace StatServer
@@ -14,84 +16,120 @@ namespace StatServer
 
         public readonly Processor processor;
 
-        public const int ThreadsCount = 10;
+        public const int MaxThreadsCount = 300;
 
-        private bool isListening;
+        private Thread listenerThread;
+
+        private bool isRunning;
 
         public Database Database;
         public Cache Cache;
 
+        public const int ReportStatsMaxCount = 50;
+        public const int ReportStatsMinCount = 0;
+        public const int ReportStatsDefaultCount = 5;
+
         public StatServer()
         {
+            ServicePointManager.DefaultConnectionLimit = MaxThreadsCount;
+            ThreadPool.SetMinThreads(MaxThreadsCount, MaxThreadsCount);
+            ThreadPool.SetMaxThreads(MaxThreadsCount, MaxThreadsCount);
             listener = new HttpListener();
-            Database = new Database();
-            Cache = new Cache(Database);
-            processor = new Processor(Database, Cache);
-            Database.Connection.Close();
+            processor = new Processor();
         }
 
         public void ClearDatabaseAndCache()
         {
-            if (Database.Connection.State == ConnectionState.Closed)
-                Database.Connection.Open();
-            Database.DropAllTables();
-            Database.CreateAllTables();
-            Cache = new Cache(Database);
-            Database.Connection.Close();
+            processor.ClearDatabaseAndCache();
         }
 
         public void Stop()
         {
-            isListening = false;
+            isRunning = false;
             listener.Stop();
             listener.Close();
-            Database.Connection.Close();
         }
 
         public void Start(string prefix)
         {
+            if (isRunning)
+                return;
+            
+            listener.Prefixes.Clear();
             listener.Prefixes.Add(prefix);
             listener.Start();
-            Database.Connection.Open();
-            isListening = true;
-            while (isListening)
+            listenerThread = new Thread(Listen)
+            {
+                IsBackground = true,
+                Priority = ThreadPriority.Highest
+            };
+            listenerThread.Start();
+
+            isRunning = true;
+            Console.ReadKey();
+        }
+
+        private void Listen()
+        {
+            while (true)
             {
                 try
                 {
-                    var context = listener.GetContext();
-                    HandleRequest(context);
+                    if (listener.IsListening)
+                    {
+                        var context = listener.GetContext();
+                        //HandleRequestAsync(context, counter);
+                        Task.Run(() => HandleRequestAsync(context));
+                    }
                 }
                 catch (ObjectDisposedException)
                 {
-                    break;
+                    //TODO Log
                 }
                 catch (HttpListenerException)
                 {
-                    break;
+                    //TODO Log
                 }
             }
         }
 
-        private void HandleRequest(HttpListenerContext context)
+        private async void HandleRequestAsync(HttpListenerContext context)
         {
-            HttpResponse response;
-
-            if (context.Request.HttpMethod == HttpMethod.Put.ToString())
+            try
             {
-                var json = GetRequestPostJson(context.Request);
-                response = processor.HandleRequest(new HttpRequest(HttpMethod.Put, context.Request.RawUrl, json));
+                var timer = new Stopwatch();
+                //Console.WriteLine($"Время начала {DateTime.Now}");
+                timer.Start();
+                //Thread.Sleep(1000);
+                
+                
+                HttpResponse response;
+                if (context.Request.HttpMethod == HttpMethod.Put.ToString())
+                {
+                    var json = GetRequestPostJson(context.Request);
+                    response = processor.HandleRequest(new HttpRequest(HttpMethod.Put, context.Request.RawUrl, json));
+                }
+                else
+                {
+                    response = processor.HandleRequest(new HttpRequest(HttpMethod.Get, context.Request.RawUrl));
+                }
+                
+                timer.Stop();
+                //Console.WriteLine($"Затраченное время: {timer.Elapsed}");
+                //Console.WriteLine(context.Request.UserHostName);
+                //Console.WriteLine(response.Code);
+                //Console.WriteLine(processor.RequestsCount);
+                //var response = new HttpResponse(HttpResponse.Status.OK);
+                
+                await SendMessage(context, response);
             }
-            else
+            catch (HttpListenerException)
             {
-                response = processor.HandleRequest(new HttpRequest(HttpMethod.Get, context.Request.RawUrl));
+
             }
-
-            Console.WriteLine(context.Request.UserHostName);
-
-            SendMessage(context, response);
         }
 
-        private static void SendMessage(HttpListenerContext context, HttpResponse response)
+        private static async Task SendMessage(HttpListenerContext context, HttpResponse response)
         {
             context.Response.StatusCode = response.Code;
 
@@ -102,7 +140,7 @@ namespace StatServer
                 {
                     using (var writer = new StreamWriter(stream))
                     {
-                        writer.Write(response.Message);
+                        await writer.WriteAsync(response.Message);
                     }
                 }
             }

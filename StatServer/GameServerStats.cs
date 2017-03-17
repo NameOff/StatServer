@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -62,12 +63,15 @@ namespace StatServer
             AveragePopulation = Extensions.CalculateAverage(TotalPopulation, firstMatchDate, lastMatchDate);
         }
 
-        public void Update(GameMatchResult match, Dictionary<DateTime, int> matchesPerDay)
+        public void Update(GameMatchResult match, ConcurrentDictionary<DateTime, int> matchesPerDay)
         {
             TotalMatchesPlayed++;
             var date = match.Timestamp.Date;
-            matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
-            MaximumMatchesPerDay = matchesPerDay.Values.DefaultIfEmpty().Max();
+            lock (matchesPerDay)
+            {
+                matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
+                MaximumMatchesPerDay = matchesPerDay.Values.DefaultIfEmpty().Max();
+            }
             var population = match.Results.Scoreboard.Length;
             MaximumPopulation = MaximumPopulation < population ? population : MaximumPopulation;
             var mode = match.Results.GameMode;

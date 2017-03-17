@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -96,7 +97,7 @@ namespace StatServer
             return (double)(players.Length - place) / (players.Length - 1) * 100;
         }
 
-        public void UpdateStats(GameMatchResult match, Dictionary<DateTime, int> matchesPerDay)
+        public void UpdateStats(GameMatchResult match, ConcurrentDictionary<DateTime, int> matchesPerDay)
         {
             var scoreboardPercent = CalculateScoreboardPercent(match);
             if (match.Results.Scoreboard.First().Name == Name)
@@ -110,8 +111,11 @@ namespace StatServer
             FavoriteServer = CalculateFavoriteServer(PlayedServers);
             FavoriteGameMode = CalculateFavoriteMode(PlayedModes);
             UniqueServers = PlayedServers.Keys.Count;
-            matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
-            MaximumMatchesPerDay = matchesPerDay.Values.DefaultIfEmpty().Max();
+            lock (matchesPerDay)
+            {
+                matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
+                MaximumMatchesPerDay = matchesPerDay.Values.DefaultIfEmpty().Max();
+            }
             var playerResult = match.Results.Scoreboard.First(info => info.Name == Name);
             TotalKills += playerResult.Kills;
             TotalDeaths += playerResult.Deaths;

@@ -1,8 +1,6 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using NUnit.Framework;
 using FluentAssertions;
 
@@ -12,7 +10,7 @@ namespace StatServer.Tests
     {
         private PlayerStats playerStats;
         private GameMatchResult matchResult;
-        private Dictionary<DateTime, int> matchesPerDay;
+        private ConcurrentDictionary<DateTime, int> matchesPerDay;
         private double OldAverageScoreboardPercent;
         private DateTime firstMatch => new DateTime(2017, 3, 10, 17, 23, 59);
         private DateTime lastMatch => new DateTime(2017, 3, 13, 1, 0, 0);
@@ -22,11 +20,10 @@ namespace StatServer.Tests
         {
             playerStats = CreatePlayerStats();
             matchResult = CreateGameMatchResult();
-            matchesPerDay = new Dictionary<DateTime, int>
-            {
-                [new DateTime(2017, 3, 10)] = 5,
-                [new DateTime(2017, 3, 11)] = 5,
-            };
+            matchesPerDay = new ConcurrentDictionary<DateTime, int>();
+            matchesPerDay[new DateTime(2017, 3, 10)] = 5;
+            matchesPerDay[new DateTime(2017, 3, 11)] = 5;
+            
             OldAverageScoreboardPercent = playerStats.AverageScoreboardPercent;
             playerStats.UpdateStats(matchResult, matchesPerDay);
             playerStats.CalculateAverageData(firstMatch, lastMatch);

@@ -29,13 +29,6 @@ namespace StatServer
             return property;
         }
 
-        /*
-        protected override string ResolvePropertyName(string propertyName)
-        {
-            return char.ToLower(propertyName[0]) + propertyName.Substring(1);
-        }
-        */
-
         public void IgnoreAll()
         {
             Allows.Clear();

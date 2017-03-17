@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using NUnit.Framework;
 using FluentAssertions;
 using Newtonsoft.Json;
@@ -109,7 +106,7 @@ namespace StatServer.Tests
             var servers = new[] { new GameServerInfoResponse(Test.Server1Endpoint, Test.CreateGameServer1Info()),
                 new GameServerInfoResponse(Test.Server2Endpoint, Test.CreateGameServer2Info()),
                 new GameServerInfoResponse(Test.Server3Endpoint, Test.CreateGameServer3Info()) };
-            result.ShouldBeEquivalentTo(servers);
+            new HashSet<GameServerInfoResponse>(result).ShouldBeEquivalentTo(new HashSet<GameServerInfoResponse>(servers));
         }
 
         [Test]

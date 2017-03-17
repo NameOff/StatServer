@@ -33,16 +33,12 @@ namespace StatServer
         {
             using (var server = new StatServer())
             {
-                server.Start(options.Prefix);
-                return;
                 try
                 {
-                    //Console.WriteLine(server.processor.database.DatabasePath);
                     server.Start(options.Prefix);
                 }
                 catch (Exception e)
                 {
-                    server.Database.Connection.Close();
                     throw;
                 }
             }
