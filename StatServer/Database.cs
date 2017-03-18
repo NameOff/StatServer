@@ -117,8 +117,8 @@ namespace StatServer
             foreach (var row in rows)
             {
                 var name = row[1];
-                var totalKills = int.Parse(row[8]);
-                var totalDeaths = int.Parse(row[9]);
+                var totalKills = int.Parse(row[9]);
+                var totalDeaths = int.Parse(row[10]);
                 var totalPlayed = int.Parse(row[2]);
                 if (totalPlayed < 10 || totalDeaths == 0)
                     continue;
@@ -158,22 +158,22 @@ namespace StatServer
                 if (cache.RecentMatches.Count >= StatServer.ReportStatsDefaultCount * 10)
                     cache.UpdateRecentMatches();
                 if (!cache.GameServersFirstMatchDate.ContainsKey(server) || cache.GameServersFirstMatchDate[server] > date)
-                    cache.GameServersFirstMatchDate[server] = date;
+                    cache.GameServersFirstMatchDate[server] = date.Date;
                 var ids = ParseIds(row[6]);
                 var players = GetPlayerInfo(ids);
                 foreach (var player in players)
                 {
                     if (!cache.PlayersFirstMatchDate.ContainsKey(player.Name) || cache.PlayersFirstMatchDate[player.Name] > date)
-                        cache.PlayersFirstMatchDate[player.Name] = date;
+                        cache.PlayersFirstMatchDate[player.Name] = date.Date;
                     if (!cache.PlayersMatchesPerDay.ContainsKey(player.Name))
                         cache.PlayersMatchesPerDay[player.Name] = new ConcurrentDictionary<DateTime, int>();
                     var playerMatches = cache.PlayersMatchesPerDay[player.Name];
-                    playerMatches[date] = playerMatches.ContainsKey(date) ? playerMatches[date] + 1 : 1;
+                    playerMatches[date.Date] = playerMatches.ContainsKey(date.Date) ? playerMatches[date.Date] + 1 : 1;
                 }
                 if (!cache.GameServersMatchesPerDay.ContainsKey(server))
                     cache.GameServersMatchesPerDay[server] = new ConcurrentDictionary<DateTime, int>();
                 var gameServerMatches = cache.GameServersMatchesPerDay[server];
-                gameServerMatches[date] = gameServerMatches.ContainsKey(date) ? gameServerMatches[date] + 1 : 1;
+                gameServerMatches[date.Date] = gameServerMatches.ContainsKey(date.Date) ? gameServerMatches[date.Date] + 1 : 1;
             }
             cache.UpdateRecentMatches();
         }

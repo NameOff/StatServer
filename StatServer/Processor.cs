@@ -21,7 +21,7 @@ namespace StatServer
         public static readonly Regex PopularServersPath = new Regex(@"^/reports/popular-servers(/(?<count>-?\d{1,}))?$", RegexOptions.Compiled);
         private static Dictionary<Regex, Func<HttpRequest, HttpResponse>> MethodByPattern;
 
-        private Cache cache;
+        public Cache Cache;
         private Database database;
 
         public int RequestsCount { get; private set; }
@@ -30,7 +30,7 @@ namespace StatServer
         {
             Console.WriteLine("Wait...");
             database = new Database();
-            cache = new Cache(database);
+            Cache = new Cache(database);
             MethodByPattern = CreateMethodByPattern();
             Console.WriteLine("OK. Start!");
         }
@@ -91,33 +91,33 @@ namespace StatServer
 
         public void PutGameServerInfo(GameServerInfo info, string endpoint)
         {
-            if (cache.GameServersInformation.ContainsKey(endpoint))
+            if (Cache.GameServersInformation.ContainsKey(endpoint))
             {
-                database.UpdateGameServerInfo(cache.GameServersInformation[endpoint], info, endpoint);
-                cache.GameServersStats[endpoint].Name = info.Name;
+                database.UpdateGameServerInfo(Cache.GameServersInformation[endpoint], info, endpoint);
+                Cache.GameServersStats[endpoint].Name = info.Name;
             }
             else
             {
                 var id = database.InsertServerInformation(info, endpoint);
-                cache.GameServersInformation[endpoint] = id;
-                cache.GameServersStats[endpoint] = new GameServerStats(endpoint, info.Name);
-                cache.GameServersMatchesPerDay[endpoint] = new ConcurrentDictionary<DateTime, int>();
+                Cache.GameServersInformation[endpoint] = id;
+                Cache.GameServersStats[endpoint] = new GameServerStats(endpoint, info.Name);
+                Cache.GameServersMatchesPerDay[endpoint] = new ConcurrentDictionary<DateTime, int>();
             }
-            cache.GameServersStats[endpoint].Info = info;
+            Cache.GameServersStats[endpoint].Info = info;
         }
 
-        public GameServerInfo GetGameServerInfo(string endpoint) => cache.GameServersInformation.ContainsKey(endpoint) ? cache.GameServersStats[endpoint].Info : null;
+        public GameServerInfo GetGameServerInfo(string endpoint) => Cache.GameServersInformation.ContainsKey(endpoint) ? Cache.GameServersStats[endpoint].Info : null;
 
         private void UpdateLastDate(DateTime date)
         {
-            if (cache.LastMatchDate == default(DateTime) || date > cache.LastMatchDate)
+            if (Cache.LastMatchDate == default(DateTime) || date > Cache.LastMatchDate)
             {
-                cache.LastMatchDate = date;
-                foreach (var endpoint in cache.GameServersStats.Keys)
+                Cache.LastMatchDate = date;
+                foreach (var endpoint in Cache.GameServersStats.Keys)
                 {
-                    if (!cache.GameServersFirstMatchDate.ContainsKey(endpoint))
+                    if (!Cache.GameServersFirstMatchDate.ContainsKey(endpoint))
                         continue;
-                    cache.GameServersStats[endpoint].CalculateAverageData(cache.GameServersFirstMatchDate[endpoint], date);
+                    Cache.GameServersStats[endpoint].CalculateAverageData(Cache.GameServersFirstMatchDate[endpoint], date);
                 }
             }
         }
@@ -126,7 +126,7 @@ namespace StatServer
         {
             var endpoint = GameMatchStatsPath.Match(request.Uri).Groups["endpoint"].ToString();
             var timestamp = GameMatchStatsPath.Match(request.Uri).Groups["timestamp"].ToString();
-            if (!cache.GameServersInformation.ContainsKey(endpoint))
+            if (!Cache.GameServersInformation.ContainsKey(endpoint))
                 return new HttpResponse(HttpResponse.Status.BadRequest);
             var matchInfo = new GameMatchResult(endpoint, Extensions.ParseTimestamp(timestamp));
             if (request.Method == HttpMethod.Put)
@@ -142,9 +142,9 @@ namespace StatServer
             if (request.Method == HttpMethod.Get)
             {
                 Console.WriteLine("GET запрос GameMatchStats");
-                if (!cache.GameMatches.ContainsKey(matchInfo))
+                if (!Cache.GameMatches.ContainsKey(matchInfo))
                     return new HttpResponse(HttpResponse.Status.NotFound);
-                var stats = database.GetGameMatchStats(cache.GameMatches[matchInfo]);
+                var stats = database.GetGameMatchStats(Cache.GameMatches[matchInfo]);
                 var json = JsonConvert.SerializeObject(stats, Formatting.Indented, Serializable.Settings);
                 return new HttpResponse(HttpResponse.Status.OK, json);
             }
@@ -160,12 +160,12 @@ namespace StatServer
             var players = GetMatchPlayers(matchInfo.Results);
 
             AddOrUpdateFirstMatchDate(date, matchInfo.Server, players);
-            lock (cache.RecentMatches)
+            lock (Cache.RecentMatches)
             {
-                cache.RecentMatches.Add(matchInfo);
+                Cache.RecentMatches.Add(matchInfo);
             }
-            cache.UpdateRecentMatches();
-            cache.GameMatches[matchInfo] = id;
+            Cache.UpdateRecentMatches();
+            Cache.GameMatches[matchInfo] = id;
 
             UpdateGameServerAndPlayerStats(matchInfo);
         }
@@ -178,8 +178,11 @@ namespace StatServer
                     AddOrUpdatePlayersStats(player, matchResult);
             }
 
-            cache.GameServersStats[matchResult.Server].Update(matchResult, cache.GameServersMatchesPerDay[matchResult.Server]);
-            cache.GameServersStats[matchResult.Server].CalculateAverageData(cache.GameServersFirstMatchDate[matchResult.Server], cache.LastMatchDate);
+            var date = matchResult.Timestamp.Date;
+            var matchesPerDay = Cache.GameServersMatchesPerDay[matchResult.Server];
+            matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
+            Cache.GameServersStats[matchResult.Server].Update(matchResult, matchesPerDay);
+            Cache.GameServersStats[matchResult.Server].CalculateAverageData(Cache.GameServersFirstMatchDate[matchResult.Server], Cache.LastMatchDate);
         }
 
         private IEnumerable<string> GetMatchPlayers(GameMatchStats stats) => stats.Scoreboard.Select(playerInfo => playerInfo.Name);
@@ -187,38 +190,41 @@ namespace StatServer
         private void AddOrUpdateFirstMatchDate(DateTime date, string endpoint, IEnumerable<string> players)
         {
             date = date.Date;
-            if (!cache.GameServersFirstMatchDate.ContainsKey(endpoint) || cache.GameServersFirstMatchDate[endpoint] > date)
-                cache.GameServersFirstMatchDate[endpoint] = date;
+            if (!Cache.GameServersFirstMatchDate.ContainsKey(endpoint) || Cache.GameServersFirstMatchDate[endpoint] > date)
+                Cache.GameServersFirstMatchDate[endpoint] = date;
 
             foreach (var player in players)
             {
-                if (!cache.PlayersFirstMatchDate.ContainsKey(player) || cache.PlayersFirstMatchDate[player] > date)
-                    cache.PlayersFirstMatchDate[player] = date;
+                if (!Cache.PlayersFirstMatchDate.ContainsKey(player) || Cache.PlayersFirstMatchDate[player] > date)
+                    Cache.PlayersFirstMatchDate[player] = date;
             }
         }
 
         private void AddOrUpdatePlayersStats(string name, GameMatchResult matchResult)
         {
-            var stats = cache.PlayersStats.ContainsKey(name)
-                ? database.GetPlayerStats(cache.PlayersStats[name])
+            var stats = Cache.PlayersStats.ContainsKey(name)
+                ? database.GetPlayerStats(Cache.PlayersStats[name])
                 : new PlayerStats(name);
-            if (!cache.PlayersMatchesPerDay.ContainsKey(name))
-                cache.PlayersMatchesPerDay[name] = new ConcurrentDictionary<DateTime, int>();
+            if (!Cache.PlayersMatchesPerDay.ContainsKey(name))
+                Cache.PlayersMatchesPerDay[name] = new ConcurrentDictionary<DateTime, int>();
 
-            stats.UpdateStats(matchResult, cache.PlayersMatchesPerDay[name]);
+            var date = matchResult.Timestamp.Date;
+            var matchesPerDay = Cache.PlayersMatchesPerDay[name];
+            matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
+            stats.UpdateStats(matchResult, matchesPerDay);
 
-            if (cache.PlayersStats.ContainsKey(name))
+            if (Cache.PlayersStats.ContainsKey(name))
             {
-                var id = cache.PlayersStats[name];
+                var id = Cache.PlayersStats[name];
                 database.UpdatePlayerStats(id, stats);
             }
             else
             {
                 var id = database.InsertPlayerStats(stats);
-                cache.PlayersStats[name] = id;
+                Cache.PlayersStats[name] = id;
             }
             if (stats.TotalMatchesPlayed >= 10 && stats.TotalDeaths != 0)
-                cache.Players[stats.Name] = stats.KillToDeathRatio;
+                Cache.Players[stats.Name] = stats.KillToDeathRatio;
         }
 
         public HttpResponse HandleAllGameServersInfoRequest(HttpRequest request)
@@ -233,8 +239,8 @@ namespace StatServer
 
         public GameServerInfoResponse[] GetAllServersInfo()
         {
-            return cache.GameServersStats.Keys
-                .Select(endpoint => new GameServerInfoResponse(endpoint, cache.GameServersStats[endpoint].Info))
+            return Cache.GameServersStats.Keys
+                .Select(endpoint => new GameServerInfoResponse(endpoint, Cache.GameServersStats[endpoint].Info))
                 .ToArray();
         }
 
@@ -253,11 +259,11 @@ namespace StatServer
 
         public PlayerStats GetPlayerStats(string name)
         {
-            if (!cache.PlayersMatchesPerDay.ContainsKey(name))
+            if (!Cache.PlayersMatchesPerDay.ContainsKey(name))
                 return null;
-            var stats = database.GetPlayerStats(cache.PlayersStats[name]);
-            if (cache.PlayersFirstMatchDate.ContainsKey(name))
-                stats.CalculateAverageData(cache.PlayersFirstMatchDate[name], cache.LastMatchDate);
+            var stats = database.GetPlayerStats(Cache.PlayersStats[name]);
+            if (Cache.PlayersFirstMatchDate.ContainsKey(name))
+                stats.CalculateAverageData(Cache.PlayersFirstMatchDate[name], Cache.LastMatchDate);
             return stats;
         }
 
@@ -276,11 +282,11 @@ namespace StatServer
 
         public GameServerStats GetGameServerStats(string endpoint)
         {
-            if (!cache.GameServersStats.ContainsKey(endpoint))
+            if (!Cache.GameServersStats.ContainsKey(endpoint))
                 return null;
-            var stats = cache.GameServersStats[endpoint];
-            if (cache.GameServersFirstMatchDate.ContainsKey(endpoint))
-                stats.CalculateAverageData(cache.GameServersFirstMatchDate[endpoint], cache.LastMatchDate);
+            var stats = Cache.GameServersStats[endpoint];
+            if (Cache.GameServersFirstMatchDate.ContainsKey(endpoint))
+                stats.CalculateAverageData(Cache.GameServersFirstMatchDate[endpoint], Cache.LastMatchDate);
             return stats;
         }
 
@@ -295,7 +301,7 @@ namespace StatServer
             return new HttpResponse(HttpResponse.Status.OK, json);
         }
 
-        public GameMatchResult[] GetRecentMatches(int count) => cache.GetRecentMatches(count);
+        public GameMatchResult[] GetRecentMatches(int count) => Cache.GetRecentMatches(count);
 
         public HttpResponse HandleBestPlayersRequest(HttpRequest request)
         {
@@ -308,7 +314,7 @@ namespace StatServer
             return new HttpResponse(HttpResponse.Status.OK, json);
         }
 
-        public PlayerStats[] GetBestPlayers(int count) => cache.GetTopPlayers(count);
+        public PlayerStats[] GetBestPlayers(int count) => Cache.GetTopPlayers(count);
 
         public HttpResponse HandlePopularServersRequest(HttpRequest request)
         {
@@ -321,13 +327,13 @@ namespace StatServer
             return new HttpResponse(HttpResponse.Status.OK, json);
         }
 
-        public GameServerStats[] GetPopularServers(int count) => cache.GetPopularServers(count);
+        public GameServerStats[] GetPopularServers(int count) => Cache.GetPopularServers(count);
 
         public void ClearDatabaseAndCache()
         {
             database.DropAllTables();
             database.CreateAllTables();
-            cache = new Cache(database);
+            Cache = new Cache(database);
         }
     }
 }

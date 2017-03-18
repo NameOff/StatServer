@@ -108,13 +108,11 @@ namespace StatServer
             AverageScoreboardPercent = (AverageScoreboardPercent * TotalMatchesPlayed + scoreboardPercent) / ++TotalMatchesPlayed;
             var mode = match.Results.GameMode;
             var server = match.Server;
-            var date = match.Timestamp.Date;
             PlayedModes[mode] = PlayedModes.ContainsKey(mode) ? PlayedModes[mode] + 1 : 1;
             PlayedServers[server] = PlayedServers.ContainsKey(server) ? PlayedServers[server] + 1 : 1;
             FavoriteServer = CalculateFavoriteServer(PlayedServers);
             FavoriteGameMode = CalculateFavoriteMode(PlayedModes);
             UniqueServers = PlayedServers.Keys.Count;
-            matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
             MaximumMatchesPerDay = matchesPerDay.Values.DefaultIfEmpty().Max();
             var playerResult = match.Results.Scoreboard.First(info => info.Name == Name);
             TotalKills += playerResult.Kills;
