@@ -26,29 +26,15 @@ namespace StatServer
         public GameServerInfo Info { get; set; }
 
         public int TotalPopulation { get; set; }
-        public Dictionary<string, int> PlayedGameModes { get; set; }
-        public Dictionary<string, int> PlayedMaps { get; set; }
-
-        public GameServerStats(string endpoint, string name, int totalMatchesPlayed,
-            int maximumPopulation, int totalPopulation, Dictionary<string, int> modes, Dictionary<string, int> maps)
-        {
-            Endpoint = endpoint;
-            Name = name;
-            TotalMatchesPlayed = totalMatchesPlayed;
-            MaximumPopulation = maximumPopulation;
-            TotalPopulation = totalPopulation;
-            PlayedGameModes = modes;
-            PlayedMaps = maps;
-            Top5Maps = GetTop5(PlayedMaps);
-            Top5GameModes = GetTop5(PlayedGameModes);
-        }
+        public ConcurrentDictionary<string, int> PlayedGameModes { get; set; }
+        public ConcurrentDictionary<string, int> PlayedMaps { get; set; }
 
         public GameServerStats(string serverId, string name, double averageMatchesPerDay = 0)
         {
             Endpoint = serverId;
             Name = name;
-            PlayedGameModes = new Dictionary<string, int>();
-            PlayedMaps = new Dictionary<string, int>();
+            PlayedGameModes = new ConcurrentDictionary<string, int>();
+            PlayedMaps = new ConcurrentDictionary<string, int>();
             AverageMatchesPerDay = averageMatchesPerDay;
         }
 
@@ -80,7 +66,7 @@ namespace StatServer
             TotalPopulation += population;
         }
 
-        private string[] GetTop5(Dictionary<string, int> played)
+        private string[] GetTop5(ConcurrentDictionary<string, int> played)
         {
             return played.Keys
                 .OrderByDescending(key => played[key])

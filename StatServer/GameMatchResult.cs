@@ -4,16 +4,17 @@ namespace StatServer
 {
     public class GameMatchResult
     {
-        public GameMatchResult(string server, string timestamp)
-        {
-            Server = server;
-            Timestamp = Extensions.ParseTimestamp(timestamp);
-        }
-
         public GameMatchResult(string server, DateTime timestamp)
         {
             Server = server;
             Timestamp = timestamp;
+        }
+
+        public GameMatchResult(string server, DateTime timestamp, GameMatchStats match)
+        {
+            Server = server;
+            Timestamp = timestamp;
+            Results = match;
         }
 
         public GameMatchResult()

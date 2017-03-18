@@ -370,7 +370,7 @@ namespace StatServer
                 var server = row[7];
                 var timestamp = row[8];
                 var id = int.Parse(row[0]);
-                gameMatches[new GameMatchResult(server, timestamp)] = id;
+                gameMatches[new GameMatchResult(server, Extensions.ParseTimestamp(timestamp))] = id;
             }
             return gameMatches;
         }

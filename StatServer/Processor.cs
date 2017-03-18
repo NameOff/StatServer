@@ -54,7 +54,6 @@ namespace StatServer
         {
             try
             {
-                RequestsCount++;
                 foreach (var pattern in MethodByPattern.Keys)
                     if (pattern.IsMatch(request.Uri))
                         return MethodByPattern[pattern](request);
@@ -129,11 +128,11 @@ namespace StatServer
             var timestamp = GameMatchStatsPath.Match(request.Uri).Groups["timestamp"].ToString();
             if (!cache.GameServersInformation.ContainsKey(endpoint))
                 return new HttpResponse(HttpResponse.Status.BadRequest);
-            var matchInfo = new GameMatchResult(endpoint, timestamp);
+            var matchInfo = new GameMatchResult(endpoint, Extensions.ParseTimestamp(timestamp));
             if (request.Method == HttpMethod.Put)
             {
                 //Console.WriteLine("PUT запрос GameMatchStats");
-                var matchStats = JsonConvert.DeserializeObject<GameMatchStats>(request.Json);
+                var matchStats = JsonConvert.DeserializeObject<GameMatchStats>(request.Json, Serializable.Settings);
                 matchInfo.Results = matchStats;
 
                 PutGameMatchResult(matchInfo);
@@ -153,7 +152,7 @@ namespace StatServer
         }
 
 
-        private void PutGameMatchResult(GameMatchResult matchInfo)
+        public void PutGameMatchResult(GameMatchResult matchInfo)
         {
             var date = matchInfo.Timestamp;
             UpdateLastDate(date);
@@ -291,10 +290,12 @@ namespace StatServer
                 return new HttpResponse(HttpResponse.Status.MethodNotAllowed);
             Console.WriteLine("GET запрос RecentMatches");
             var count = Extensions.StringCountToInt(RecentMatchesPath.Match(request.Uri).Groups["count"].ToString());
-            var matches = cache.GetRecentMatches(count);
+            var matches = GetRecentMatches(count);
             var json = JsonConvert.SerializeObject(matches, Formatting.Indented, Serializable.Settings);
             return new HttpResponse(HttpResponse.Status.OK, json);
         }
+
+        public GameMatchResult[] GetRecentMatches(int count) => cache.GetRecentMatches(count);
 
         public HttpResponse HandleBestPlayersRequest(HttpRequest request)
         {
@@ -302,21 +303,25 @@ namespace StatServer
                 return new HttpResponse(HttpResponse.Status.MethodNotAllowed);
             Console.WriteLine("GET запрос BestPlayers");
             var count = Extensions.StringCountToInt(BestPlayersPath.Match(request.Uri).Groups["count"].ToString());
-            var players = cache.GetTopPlayers(count);
+            var players = GetBestPlayers(count);
             var json = Extensions.SerializeTopPlayers(players);
             return new HttpResponse(HttpResponse.Status.OK, json);
         }
+
+        public PlayerStats[] GetBestPlayers(int count) => cache.GetTopPlayers(count);
 
         public HttpResponse HandlePopularServersRequest(HttpRequest request)
         {
             if (request.Method != HttpMethod.Get)
                 return new HttpResponse(HttpResponse.Status.MethodNotAllowed);
             Console.WriteLine("GET запрос PopularServers");
-            var count = Extensions.StringCountToInt(BestPlayersPath.Match(request.Uri).Groups["count"].ToString());
-            var servers = cache.GetPopularServers(count);
+            var count = Extensions.StringCountToInt(PopularServersPath.Match(request.Uri).Groups["count"].ToString());
+            var servers = GetPopularServers(count);
             var json = Extensions.SerializePopularServers(servers);
             return new HttpResponse(HttpResponse.Status.OK, json);
         }
+
+        public GameServerStats[] GetPopularServers(int count) => cache.GetPopularServers(count);
 
         public void ClearDatabaseAndCache()
         {

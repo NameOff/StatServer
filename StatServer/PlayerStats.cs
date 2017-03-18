@@ -29,11 +29,11 @@ namespace StatServer
 
         public int TotalKills { get; set; }
         public int TotalDeaths { get; set; }
-        public Dictionary<string, int> PlayedModes { get; set; }
-        public Dictionary<string, int> PlayedServers { get; set; }
+        public ConcurrentDictionary<string, int> PlayedModes { get; set; }
+        public ConcurrentDictionary<string, int> PlayedServers { get; set; }
 
-        public PlayerStats(string name, int totalMatchesPlayed, int totalMatchesWon, Dictionary<string, int> servers,
-            Dictionary<string, int> modes, double averageScoreboardPercent,
+        public PlayerStats(string name, int totalMatchesPlayed, int totalMatchesWon, ConcurrentDictionary<string, int> servers,
+            ConcurrentDictionary<string, int> modes, double averageScoreboardPercent,
             DateTime lastMatchPlayed, int maximumMatchesPerDay, int totalKills, int totalDeaths)
         {
             Name = name;
@@ -53,12 +53,12 @@ namespace StatServer
                 KillToDeathRatio = CalculateKillToDeathRatio(TotalKills, TotalDeaths);
         }
 
-        private string CalculateFavoriteServer(Dictionary<string, int> servers)
+        private string CalculateFavoriteServer(ConcurrentDictionary<string, int> servers)
         {
             return servers.Keys.OrderByDescending(key => servers[key]).First();
         }
 
-        private string CalculateFavoriteMode(Dictionary<string, int> modes)
+        private string CalculateFavoriteMode(ConcurrentDictionary<string, int> modes)
         {
             return modes.Keys.OrderByDescending(mode => modes[mode]).First();
         }
@@ -71,8 +71,8 @@ namespace StatServer
         public PlayerStats(string name)
         {
             Name = name;
-            PlayedModes = new Dictionary<string, int>();
-            PlayedServers = new Dictionary<string, int>();
+            PlayedModes = new ConcurrentDictionary<string, int>();
+            PlayedServers = new ConcurrentDictionary<string, int>();
         }
 
         public PlayerStats(string name, double killToDeathRatio)
@@ -86,10 +86,11 @@ namespace StatServer
             return (double)totalKills / totalDeaths;
         }
 
-        public double CalculateScoreboardPercent(GameMatchResult match)
+        public double CalculateScoreboardPercent(PlayerInfo[] players)
         {
+            if (players.Length == 1)
+                return 100;
             var place = -1;
-            var players = match.Results.Scoreboard;
             for (var i = 0; i < players.Length; i++)
             {
                 if (players[i].Name != Name) continue;
@@ -101,7 +102,7 @@ namespace StatServer
 
         public void UpdateStats(GameMatchResult match, ConcurrentDictionary<DateTime, int> matchesPerDay)
         {
-            var scoreboardPercent = CalculateScoreboardPercent(match);
+            var scoreboardPercent = CalculateScoreboardPercent(match.Results.Scoreboard);
             if (match.Results.Scoreboard.First().Name == Name)
                 TotalMatchesWon++;
             AverageScoreboardPercent = (AverageScoreboardPercent * TotalMatchesPlayed + scoreboardPercent) / ++TotalMatchesPlayed;

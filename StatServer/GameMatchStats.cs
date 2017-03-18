@@ -23,7 +23,7 @@ namespace StatServer
         }
 
         public GameMatchStats(string map, string gameMode, int fragLimit, int timeLimit, double timeElapsed,
-            params PlayerInfo[] scoreboard)
+            PlayerInfo[] scoreboard)
         {
             Map = map;
             GameMode = gameMode;

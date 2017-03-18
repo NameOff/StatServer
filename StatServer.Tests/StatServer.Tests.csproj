@@ -57,7 +57,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Cache_should.cs" />
     <Compile Include="Client.cs" />
+    <Compile Include="Extensions_should.cs" />
+    <Compile Include="GameSession.cs" />
     <Compile Include="PlayerStats_should.cs" />
     <Compile Include="Processor_should.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

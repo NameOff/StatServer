@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -21,11 +22,11 @@ namespace StatServer
         {
             var array = players.Select(player => new Dictionary<string, object>
             {
-                ["name"] = player.Name,
-                ["killToDeathRatio"] = player.KillToDeathRatio
+                [PlayerStats.Field.Name.ToString()] = player.Name,
+                [PlayerStats.Field.KillToDeathRatio.ToString()] = player.KillToDeathRatio
             })
             .ToArray();
-            return JsonConvert.SerializeObject(array, Formatting.Indented);
+            return JsonConvert.SerializeObject(array, Formatting.Indented, Serializable.Settings);
         }
 
         public static string SerializePopularServers(GameServerStats[] servers)
@@ -57,18 +58,18 @@ namespace StatServer
             return (double)count / (Math.Abs((end.Date - start.Date).Days) + 1);
         }
 
-        public static string EncodeElements(Dictionary<string, int> played)
+        public static string EncodeElements(ConcurrentDictionary<string, int> played)
         {
             var data = played.Keys
                 .Select(key => $"{key}:{played[key]}");
-            return string.Join(", ", data);
+            return string.Join(",", data);
         }
 
-        public static Dictionary<string, int> DecodeElements(string encoded)
+        public static ConcurrentDictionary<string, int> DecodeElements(string encoded)
         {
             if (encoded.Length == 0)
-                return new Dictionary<string, int>();
-            var elements = new Dictionary<string, int>();
+                return new ConcurrentDictionary<string, int>();
+            var elements = new ConcurrentDictionary<string, int>();
             foreach (var data in encoded.Split(','))
             {
                 var splitted = data.Split(':');
