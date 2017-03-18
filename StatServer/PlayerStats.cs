@@ -33,8 +33,8 @@ namespace StatServer
         public Dictionary<string, int> PlayedServers { get; set; }
 
         public PlayerStats(string name, int totalMatchesPlayed, int totalMatchesWon, Dictionary<string, int> servers,
-            Dictionary<string, int> modes, double averageScoreboardPercent, 
-            DateTime lastMatchPlayed, int totalKills, int totalDeaths)
+            Dictionary<string, int> modes, double averageScoreboardPercent,
+            DateTime lastMatchPlayed, int maximumMatchesPerDay, int totalKills, int totalDeaths)
         {
             Name = name;
             TotalMatchesPlayed = totalMatchesPlayed;
@@ -45,13 +45,15 @@ namespace StatServer
             LastMatchPlayed = lastMatchPlayed;
             FavoriteServer = CalculateFavoriteServer(servers);
             FavoriteGameMode = CalculateFavoriteMode(modes);
+            UniqueServers = servers.Keys.Count;
+            MaximumMatchesPerDay = maximumMatchesPerDay;
             TotalKills = totalKills;
             TotalDeaths = totalDeaths;
             if (TotalDeaths != 0)
                 KillToDeathRatio = CalculateKillToDeathRatio(TotalKills, TotalDeaths);
         }
 
-        private  string CalculateFavoriteServer(Dictionary<string, int> servers)
+        private string CalculateFavoriteServer(Dictionary<string, int> servers)
         {
             return servers.Keys.OrderByDescending(key => servers[key]).First();
         }
@@ -63,7 +65,7 @@ namespace StatServer
 
         public PlayerStats()
         {
-            
+
         }
 
         public PlayerStats(string name)
@@ -111,11 +113,8 @@ namespace StatServer
             FavoriteServer = CalculateFavoriteServer(PlayedServers);
             FavoriteGameMode = CalculateFavoriteMode(PlayedModes);
             UniqueServers = PlayedServers.Keys.Count;
-            lock (matchesPerDay)
-            {
-                matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
-                MaximumMatchesPerDay = matchesPerDay.Values.DefaultIfEmpty().Max();
-            }
+            matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
+            MaximumMatchesPerDay = matchesPerDay.Values.DefaultIfEmpty().Max();
             var playerResult = match.Results.Scoreboard.First(info => info.Name == Name);
             TotalKills += playerResult.Kills;
             TotalDeaths += playerResult.Deaths;
@@ -131,8 +130,8 @@ namespace StatServer
 
         public string SerializeForGetResponse()
         {
-            return Serialize(Field.TotalMatchesPlayed, Field.TotalMatchesWon, Field.FavoriteServer, 
-                Field.UniqueServers, Field.FavoriteGameMode, Field.AverageScoreboardPercent, 
+            return Serialize(Field.TotalMatchesPlayed, Field.TotalMatchesWon, Field.FavoriteServer,
+                Field.UniqueServers, Field.FavoriteGameMode, Field.AverageScoreboardPercent,
                 Field.MaximumMatchesPerDay, Field.AverageMatchesPerDay, Field.LastMatchPlayed, Field.KillToDeathRatio);
         }
 

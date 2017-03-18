@@ -54,7 +54,7 @@ namespace StatServer
 
         public GameServerStats()
         {
-            
+
         }
 
         public void CalculateAverageData(DateTime firstMatchDate, DateTime lastMatchDate)
@@ -67,11 +67,8 @@ namespace StatServer
         {
             TotalMatchesPlayed++;
             var date = match.Timestamp.Date;
-            lock (matchesPerDay)
-            {
-                matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
-                MaximumMatchesPerDay = matchesPerDay.Values.DefaultIfEmpty().Max();
-            }
+            matchesPerDay[date] = matchesPerDay.ContainsKey(date) ? matchesPerDay[date] + 1 : 1;
+            MaximumMatchesPerDay = matchesPerDay.Values.DefaultIfEmpty().Max();
             var population = match.Results.Scoreboard.Length;
             MaximumPopulation = MaximumPopulation < population ? population : MaximumPopulation;
             var mode = match.Results.GameMode;
@@ -98,7 +95,7 @@ namespace StatServer
 
         public string SerializeForGetResponse()
         {
-            return Serialize(Field.TotalMatchesPlayed, Field.MaximumMatchesPerDay, Field.AverageMatchesPerDay, 
+            return Serialize(Field.TotalMatchesPlayed, Field.MaximumMatchesPerDay, Field.AverageMatchesPerDay,
                 Field.MaximumPopulation, Field.AveragePopulation, Field.Top5GameModes, Field.Top5Maps);
         }
     }

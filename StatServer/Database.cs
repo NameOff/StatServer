@@ -27,9 +27,10 @@ namespace StatServer
             [Table.GameMatchStats] = new[] { "map", "game_mode", "frag_limit", "time_limit",
                     "time_elapsed", "scoreboard", "server", "timestamp" },
             [Table.PlayersStats] = new[] { "name", "total_matches_played", "total_matches_won", "servers",
-                    "game_modes", "average_scoreboard_percent", "last_match_played", "total_kills", "total_deaths" }
+                    "game_modes", "average_scoreboard_percent", "last_match_played", "maximum_matches_per_day",
+                "total_kills", "total_deaths" }
         };
-        private readonly ConcurrentDictionary<Table, int> tableRowsCount;        
+        private readonly ConcurrentDictionary<Table, int> tableRowsCount;
 
         public Database()
         {
@@ -277,6 +278,7 @@ namespace StatServer
                         'game_modes' TEXT NOT NULL,
                         'average_scoreboard_percent' REAL,
                         'last_match_played' TEXT NOT NULL,
+                        'maximum_matches_per_day' INTEGER,
                         'total_kills' INTEGER,
                         'total_deaths' INTEGER
                     )"
@@ -317,6 +319,7 @@ namespace StatServer
                 Tuple.Create("game_modes", (object)Extensions.EncodeElements(stats.PlayedModes)),
                 Tuple.Create("average_scoreboard_percent", (object)stats.AverageScoreboardPercent),
                 Tuple.Create("last_match_played", (object)stats.LastMatchPlayed),
+                Tuple.Create("maximum_matches_per_day", (object)stats.MaximumMatchesPerDay),
                 Tuple.Create("total_kills", (object)stats.TotalKills),
                 Tuple.Create("total_deaths", (object)stats.TotalDeaths)
             };
@@ -396,14 +399,16 @@ namespace StatServer
             var row = GetTableRowById(Table.PlayersStats, id);
             return new PlayerStats(row[1], int.Parse(row[2]), int.Parse(row[3]),
                 Extensions.DecodeElements(row[4]), Extensions.DecodeElements(row[5]),
-                double.Parse(row[6]), Extensions.ParseTimestamp(row[7]), int.Parse(row[8]), int.Parse(row[9]));
+                double.Parse(row[6]), Extensions.ParseTimestamp(row[7]), int.Parse(row[8]),
+                int.Parse(row[9]), int.Parse(row[10]));
         }
 
         public int InsertPlayerStats(PlayerStats stats)
         {
             InsertInto(Table.PlayersStats, stats.Name, stats.TotalMatchesPlayed, stats.TotalMatchesWon,
                 Extensions.EncodeElements(stats.PlayedServers), Extensions.EncodeElements(stats.PlayedModes),
-                stats.AverageScoreboardPercent, stats.LastMatchPlayed, stats.TotalKills, stats.TotalDeaths);
+                stats.AverageScoreboardPercent, stats.LastMatchPlayed, stats.MaximumMatchesPerDay,
+                stats.TotalKills, stats.TotalDeaths);
             return tableRowsCount[Table.PlayersStats];
         }
 

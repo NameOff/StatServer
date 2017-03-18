@@ -41,7 +41,7 @@ namespace StatServer.Tests
             var servers = new Dictionary<string, int> { ["First"] = 5, ["Second"] = 5 };
             var modes = new Dictionary<string, int> { ["DM"] = 5, ["SD"] = 1, ["TDM"] = 4 };
             var lastMatch = new DateTime(2017, 3, 11, 23, 45, 0);
-            return new PlayerStats("NameOff", 10, 3, servers, modes, 72.123442, lastMatch, 78, 98);
+            return new PlayerStats("NameOff", 10, 3, servers, modes, 72.123442, lastMatch, 10, 78, 98);
         }
 
         [Test]

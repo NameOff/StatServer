@@ -58,6 +58,7 @@ namespace StatServer
                 foreach (var pattern in MethodByPattern.Keys)
                     if (pattern.IsMatch(request.Uri))
                         return MethodByPattern[pattern](request);
+
             }
             catch (JsonReaderException)
             {
@@ -134,7 +135,9 @@ namespace StatServer
                 //Console.WriteLine("PUT запрос GameMatchStats");
                 var matchStats = JsonConvert.DeserializeObject<GameMatchStats>(request.Json);
                 matchInfo.Results = matchStats;
+
                 PutGameMatchResult(matchInfo);
+
                 return new HttpResponse(HttpResponse.Status.OK);
             }
             if (request.Method == HttpMethod.Get)
@@ -170,8 +173,11 @@ namespace StatServer
 
         private void UpdateGameServerAndPlayerStats(GameMatchResult matchResult)
         {
-            foreach (var player in GetMatchPlayers(matchResult.Results))
-                AddOrUpdatePlayersStats(player, matchResult);
+            lock (database)
+            {
+                foreach (var player in GetMatchPlayers(matchResult.Results))
+                    AddOrUpdatePlayersStats(player, matchResult);
+            }
 
             cache.GameServersStats[matchResult.Server].Update(matchResult, cache.GameServersMatchesPerDay[matchResult.Server]);
             cache.GameServersStats[matchResult.Server].CalculateAverageData(cache.GameServersFirstMatchDate[matchResult.Server], cache.LastMatchDate);
@@ -199,7 +205,9 @@ namespace StatServer
                 : new PlayerStats(name);
             if (!cache.PlayersMatchesPerDay.ContainsKey(name))
                 cache.PlayersMatchesPerDay[name] = new ConcurrentDictionary<DateTime, int>();
+
             stats.UpdateStats(matchResult, cache.PlayersMatchesPerDay[name]);
+
             if (cache.PlayersStats.ContainsKey(name))
             {
                 var id = cache.PlayersStats[name];

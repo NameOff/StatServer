@@ -73,7 +73,8 @@ namespace StatServer.Tests
             var playedServers = new Dictionary<string, int> { [Server1Endpoint] = 1 };
             var playedModes = new Dictionary<string, int> { [GameModeDM] = 1 };
             var scoreboardPercent = 3.0 / 4 * 100;
-            var stats = new PlayerStats(PlayerNameOff, 1, 0, playedServers, playedModes, scoreboardPercent, Timestamp1, 39, 23);
+            var stats = new PlayerStats(PlayerNameOff, 1, 0, playedServers, playedModes, scoreboardPercent, Timestamp1, 1, 39, 23);
+            stats.UniqueServers = 1;
             stats.CalculateAverageData(Timestamp1, Timestamp1);
             return stats;
         }
