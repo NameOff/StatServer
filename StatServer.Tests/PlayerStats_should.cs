@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using NUnit.Framework;
 using FluentAssertions;
 
@@ -31,7 +30,7 @@ namespace StatServer.Tests
             playerStats.CalculateAverageData(firstMatch, lastMatch);
         }
 
-        private GameMatchResult CreateGameMatchResult()
+        private static GameMatchResult CreateGameMatchResult()
         {
             var scoreBoard = new[] { new PlayerInfo(Test.PlayerApollon76, 42, 42, 13),
                 new PlayerInfo(Test.PlayerNameOff, 13, 13, 42) };
@@ -39,7 +38,7 @@ namespace StatServer.Tests
             return new GameMatchResult(Test.Server2Endpoint, new DateTime(2017, 3, 12, 00, 31, 18), matchStats);
         }
 
-        private PlayerStats CreatePlayerStats()
+        private static PlayerStats CreatePlayerStats()
         {
             var servers = new ConcurrentDictionary<string, int> { [Test.Server1Endpoint] = 5, [Test.Server2Endpoint] = 5 };
             var modes = new ConcurrentDictionary<string, int> { [Test.GameModeDM] = 5, [Test.GameModeSD] = 1, [Test.GameModeTDM] = 4 };

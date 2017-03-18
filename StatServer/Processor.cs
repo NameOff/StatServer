@@ -22,9 +22,7 @@ namespace StatServer
         private static Dictionary<Regex, Func<HttpRequest, HttpResponse>> MethodByPattern;
 
         public Cache Cache;
-        private Database database;
-
-        public int RequestsCount { get; private set; }
+        private readonly Database database;
 
         public Processor()
         {
@@ -57,7 +55,6 @@ namespace StatServer
                 foreach (var pattern in MethodByPattern.Keys)
                     if (pattern.IsMatch(request.Uri))
                         return MethodByPattern[pattern](request);
-
             }
             catch (JsonReaderException)
             {

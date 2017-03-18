@@ -14,7 +14,7 @@ namespace StatServer.Tests
             Prefix = prefix;
         }
 
-        private HttpResponse GetAnswer(WebRequest request)
+        private static HttpResponse GetAnswer(WebRequest request)
         {
             try
             {

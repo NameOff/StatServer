@@ -24,6 +24,9 @@ namespace StatServer.Tests
                 processor.PutGameServerInfo(server.Info, server.Endpoint);
             foreach (var gameMatchResult in session.Matches)
                 processor.PutGameMatchResult(gameMatchResult);
+            session.Servers[0].Info.Name = "NewName";
+            foreach (var server in session.Servers)
+                processor.PutGameServerInfo(server.Info, server.Endpoint);
         }
 
         [Test]

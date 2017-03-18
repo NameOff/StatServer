@@ -66,7 +66,8 @@ namespace StatServer
             listenerThread.Start();
 
             isRunning = true;
-            Console.ReadKey();
+            while (isRunning)
+                Thread.Sleep(100);
         }
 
         private void Listen()

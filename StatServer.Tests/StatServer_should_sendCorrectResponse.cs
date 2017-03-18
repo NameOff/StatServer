@@ -36,19 +36,25 @@ namespace StatServer.Tests
             client.SendRequest().PutMatchStats(matchStats, Test.Server1Endpoint, Test.Timestamp1);
         }
 
-        [SetUp]
+        [OneTimeSetUp]
         public void SetUp()
         {
             client = new Client("http://127.0.0.1:8080/");
             server = new StatServer();
             server.ClearDatabaseAndCache();
-            new Thread(prefix => server.Start((string)prefix)).Start("http://+:8080/");
+            var prefix = "http://+:8080/";
+            new Thread(() => server.Start(prefix)).Start();
+        }
+
+        [SetUp]
+        public void SendServerInfo()
+        {
+            SendServer1Info();
         }
 
         [Test]
         public void AfterClientSendingGetServerInfoRequest()
         {
-            SendServer1Info();
             var response = client.SendRequest().GetServerInfo(Test.Server1Endpoint);
             server.ClearDatabaseAndCache();
             var info = JsonConvert.DeserializeObject<GameServerInfo>(response.Message);
@@ -58,7 +64,6 @@ namespace StatServer.Tests
         [Test]
         public void AfterClientSendingPutAndGetMatchStatsRequest()
         {
-            SendServer1Info();
             SendGameMatch();
             var response = client.SendRequest().GetMatchStats(Test.Server1Endpoint, Test.Timestamp1);
             server.ClearDatabaseAndCache();
@@ -69,7 +74,6 @@ namespace StatServer.Tests
         [Test]
         public void AfterClientSendingGetPlayerStatsRequest()
         {
-            SendServer1Info();
             SendGameMatch();
             var stats = Test.CreatePlayerStats();
             var json = stats.SerializeForGetResponse();
@@ -83,7 +87,6 @@ namespace StatServer.Tests
         [Test]
         public void AfterClientSendingGetServerStatsRequest()
         {
-            SendServer1Info();
             SendGameMatch();
             var stats = Test.CreateGameServerStats();
             var json = stats.SerializeForGetResponse();
@@ -97,7 +100,6 @@ namespace StatServer.Tests
         [Test]
         public void AfterClientSendingGetAllServersInfoRequest()
         {
-            SendServer1Info();
             SendServer2Info();
             SendServer3Info();
             var response = client.SendRequest().GetAllServersInfo();
@@ -113,7 +115,6 @@ namespace StatServer.Tests
         public void AfterClientSendingGetRecentMatchesRequest()
         {
             var match = Test.CreateGameMatchStats();
-            SendServer1Info();
             var count = 3;
             var timestamps = new DateTime[count];
             for (var i = 0; i < count; i++)
@@ -134,7 +135,6 @@ namespace StatServer.Tests
         [Test]
         public void AfterClientSendingGetBestPlayersRequest()
         {
-            SendServer1Info();
             var match = Test.CreateGameMatchStats();
             var count = 10;
             var timestamps = new DateTime[count];
@@ -158,7 +158,6 @@ namespace StatServer.Tests
         [Test]
         public void AfterClientSendingGetPopularServersRequest()
         {
-            SendServer1Info();
             SendServer2Info();
             SendServer3Info();
             var match = Test.CreateGameMatchStats();
@@ -181,6 +180,12 @@ namespace StatServer.Tests
         }
 
         [TearDown]
+        public void ClearDatabase()
+        {
+            server.ClearDatabaseAndCache();
+        }
+
+        [OneTimeTearDown]
         public void StopServer()
         {
             server.Stop();

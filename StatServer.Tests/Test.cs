@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 
 namespace StatServer.Tests
 {
@@ -89,40 +88,9 @@ namespace StatServer.Tests
             var playedModes = new ConcurrentDictionary<string, int> { [GameModeDM] = 1 };
             var scoreboardPercent = 3.0 / 4 * 100;
             var stats = new PlayerStats(PlayerNameOff, 1, 0, playedServers, playedModes, scoreboardPercent, Timestamp1,
-                1, 39, 23);
-            stats.UniqueServers = 1;
+                1, 39, 23) {UniqueServers = 1};
             stats.CalculateAverageData(Timestamp1, Timestamp1);
             return stats;
-        }
-
-        public static PlayerInfo[] CreateScoreboard1()
-        {
-            return new[]
-            {
-                new PlayerInfo(PlayerNameOff, 15, 15, 5),
-                new PlayerInfo(PlayerSnoward, 8, 8, 8),
-                new PlayerInfo(PlayerQoter, 4, 4, 14)
-            };
-        }
-
-        public static PlayerInfo[] CreateScoreboard2()
-        {
-            return new[]
-            {
-                new PlayerInfo(PlayerQoter, 15, 15, 10),
-                new PlayerInfo(PlayerNameOff, 11, 11, 8),
-                new PlayerInfo(PlayerSnoward, 4, 4, 12)
-            };
-        }
-
-        public static PlayerInfo[] CreateScoreboard3()
-        {
-            return new[]
-            {
-                new PlayerInfo(PlayerSnoward, 15, 15, 8),
-                new PlayerInfo(PlayerQoter, 10, 10, 8),
-                new PlayerInfo(PlayerNameOff, 3, 3, 14)
-            };
         }
 
         public static PlayerStats CreatePlayerStatsWithArguments(string name, int totalMatchesPlayed, int totalMatchesWon, string favoriteServer,
