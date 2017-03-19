@@ -29,6 +29,7 @@ namespace StatServer
 
         public StatServer()
         {
+            Logger.InitLogger();
             ServicePointManager.DefaultConnectionLimit = MaxThreadsCount;
             ThreadPool.SetMinThreads(MaxThreadsCount, MaxThreadsCount);
             ThreadPool.SetMaxThreads(MaxThreadsCount, MaxThreadsCount);
@@ -52,20 +53,21 @@ namespace StatServer
         {
             if (isRunning)
                 return;
-            
-            listener.Prefixes.Clear();
-            listener.Prefixes.Add(prefix);
-            listener.Start();
-            listenerThread = new Thread(Listen)
+            lock (listener)
             {
-                IsBackground = true,
-                Priority = ThreadPriority.Highest
-            };
-            listenerThread.Start();
+                listener.Prefixes.Clear();
+                listener.Prefixes.Add(prefix);
+                listener.Start();
+                listenerThread = new Thread(Listen)
+                {
+                    IsBackground = true,
+                    Priority = ThreadPriority.Highest
+                };
+                listenerThread.Start();
 
-            isRunning = true;
-            while (isRunning)
-                Thread.Sleep(100);
+                isRunning = true;
+                listenerThread.Join();
+            }
         }
 
         private void Listen()
@@ -82,11 +84,15 @@ namespace StatServer
                 }
                 catch (ObjectDisposedException)
                 {
-                    //TODO Log
+                    Logger.Log.Debug("Server disposed");
                 }
                 catch (HttpListenerException)
                 {
-                    //TODO Log
+                    Logger.Log.Debug("Connection lost");
+                }
+                catch (Exception e)
+                {
+                    Logger.Log.Debug($"Unexcpected exception: {e.Message}");
                 }
             }
         }
@@ -99,12 +105,14 @@ namespace StatServer
                 if (context.Request.HttpMethod == HttpMethod.Put.ToString())
                 {
                     var json = GetRequestPostJson(context.Request);
-                    response = processor.HandleRequest(new Request(HttpMethod.Put, context.Request.RawUrl, json));
+                    response = processor.HandleRequest(new Request(HttpMethod.Put, context.Request.RawUrl, context.Request.RemoteEndPoint, json));
                 }
                 else
                 {
-                    response = processor.HandleRequest(new Request(HttpMethod.Get, context.Request.RawUrl));
+                    response = processor.HandleRequest(new Request(HttpMethod.Get, context.Request.RawUrl, context.Request.RemoteEndPoint));
                 }
+                if (response.Code == (int) Response.Status.MethodNotAllowed)
+                    Logger.Log.Error($"Method not allowed. Client: {context.Request.RemoteEndPoint}");
                 await SendMessage(context, response);
             }
             catch (HttpListenerException)

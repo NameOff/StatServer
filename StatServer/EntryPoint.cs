@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
-using System.Timers;
 using Fclp;
 
 namespace StatServer
@@ -31,16 +29,7 @@ namespace StatServer
         private static void RunServer(Options options)
         {
             using (var server = new StatServer())
-            {
-                try
-                {
-                    server.Start(options.Prefix);
-                }
-                catch (Exception e)
-                {
-                    throw;
-                }
-            }
+                server.Start(options.Prefix);
         }
 
         private class Options

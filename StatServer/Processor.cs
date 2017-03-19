@@ -58,13 +58,15 @@ namespace StatServer
             }
             catch (JsonReaderException)
             {
+                Logger.Log.Error($"Wrong json format. Client: {request.ClientEndPoint}");
                 return new Response(Response.Status.BadRequest);
             }
             catch (JsonSerializationException)
             {
+                Logger.Log.Error($"Wrong json format. Client: {request.ClientEndPoint}");
                 return new Response(Response.Status.BadRequest);
             }
-            Console.WriteLine("Incorrect");
+            Logger.Log.Error($"Wrong Uri. Клиент: {request.ClientEndPoint}. Uri: {request.Uri}");
             return new Response(Response.Status.NotFound);
         }
 
