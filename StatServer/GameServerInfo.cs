@@ -1,11 +1,15 @@
 ﻿using System;
 using System.Linq;
+using System.Runtime.Serialization;
 
 namespace StatServer
 {
+    [DataContract]
     public class GameServerInfo
     {
+        [DataMember(IsRequired = true)]
         public string Name { get; set; }
+        [DataMember(IsRequired = true)]
         public string[] GameModes { get; set; }
 
         public GameServerInfo()

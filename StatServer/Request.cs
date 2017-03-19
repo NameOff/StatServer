@@ -2,13 +2,13 @@
 
 namespace StatServer
 {
-    public class HttpRequest
+    public class Request
     {
         public readonly HttpMethod Method;
         public readonly string Uri;
         public readonly string Json;
 
-        public HttpRequest(HttpMethod method, string uri, string json = null)
+        public Request(HttpMethod method, string uri, string json = null)
         {
             Method = method;
             Uri = uri;

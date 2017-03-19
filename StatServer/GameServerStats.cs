@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Linq;
+using Newtonsoft.Json;
 
 namespace StatServer
 {
@@ -24,8 +25,11 @@ namespace StatServer
         public string[] Top5Maps { get; set; }
         public GameServerInfo Info { get; set; }
 
+        [JsonIgnore]
         public int TotalPopulation { get; set; }
+        [JsonIgnore]
         public ConcurrentDictionary<string, int> PlayedGameModes { get; set; }
+        [JsonIgnore]
         public ConcurrentDictionary<string, int> PlayedMaps { get; set; }
 
         public GameServerStats(string serverId, string name, double averageMatchesPerDay = 0)
@@ -35,6 +39,8 @@ namespace StatServer
             PlayedGameModes = new ConcurrentDictionary<string, int>();
             PlayedMaps = new ConcurrentDictionary<string, int>();
             AverageMatchesPerDay = averageMatchesPerDay;
+            Top5Maps = new string[0];
+            Top5GameModes = new string[0];
         }
 
         public GameServerStats()

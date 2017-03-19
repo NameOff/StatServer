@@ -81,6 +81,7 @@
       <HintPath>..\packages\System.Data.SQLite.Linq.1.0.104.0\lib\net451\System.Data.SQLite.Linq.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Web" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -97,8 +98,8 @@
     <Compile Include="GameServerInfoResponse.cs" />
     <Compile Include="GameMatchResult.cs" />
     <Compile Include="GameServerStats.cs" />
-    <Compile Include="HttpRequest.cs" />
-    <Compile Include="HttpResponse.cs" />
+    <Compile Include="Request.cs" />
+    <Compile Include="Response.cs" />
     <Compile Include="Serializable.cs" />
     <Compile Include="SerializerContractResolver.cs" />
     <Compile Include="PlayerStats.cs" />

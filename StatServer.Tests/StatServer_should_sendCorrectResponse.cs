@@ -10,7 +10,7 @@ namespace StatServer.Tests
     class StatServer_should_sendCorrectResponse
     {
         private StatServer server;
-        private Client client;
+        private Client.Client client;
 
         private void SendServer1Info()
         {
@@ -39,7 +39,7 @@ namespace StatServer.Tests
         [OneTimeSetUp]
         public void SetUp()
         {
-            client = new Client("http://127.0.0.1:8080/");
+            client = new Client.Client("http://127.0.0.1:8080/");
             server = new StatServer();
             server.ClearDatabaseAndCache();
             var prefix = "http://+:8080/";

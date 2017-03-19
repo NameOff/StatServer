@@ -4,6 +4,10 @@ namespace StatServer
 {
     public class GameMatchResult
     {
+        public string Server { get; set; }
+        public DateTime Timestamp { get; set; }
+        public GameMatchStats Results { get; set; }
+
         public GameMatchResult(string server, DateTime timestamp)
         {
             Server = server;
@@ -21,10 +25,6 @@ namespace StatServer
         {
             
         }
-
-        public string Server { get; set; }
-        public DateTime Timestamp { get; set; }
-        public GameMatchStats Results { get; set; }
 
         public override int GetHashCode()
         {

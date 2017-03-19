@@ -1,20 +1,21 @@
-﻿using System.Linq;
+﻿using System.Runtime.Serialization;
 
 namespace StatServer
 {
-    public class GameMatchStats : Serializable
+    [DataContract]
+    public class GameMatchStats
     {
-        public enum Field
-        {
-            Map, GameMode, FragLimit, TimeLimit,
-            TimeElapsed, Scoreboard
-        }
-
+        [DataMember(IsRequired = true)]
         public string Map { get; set; }
+        [DataMember(IsRequired = true)]
         public string GameMode { get; set; }
+        [DataMember(IsRequired = true)]
         public int FragLimit { get; set; }
+        [DataMember(IsRequired = true)]
         public int TimeLimit { get; set; }
+        [DataMember(IsRequired = true)]
         public double TimeElapsed { get; set; }
+        [DataMember(IsRequired = true)]
         public PlayerInfo[] Scoreboard { get; set; }
 
         public GameMatchStats()
@@ -31,11 +32,6 @@ namespace StatServer
             TimeLimit = timeLimit;
             TimeElapsed = timeElapsed;
             Scoreboard = scoreboard;
-        }
-
-        public string Serialize(params Field[] fields)
-        {
-            return Serialize(this, fields.Select(field => field.ToString()).ToArray());
         }
     }
 }

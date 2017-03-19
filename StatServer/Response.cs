@@ -1,6 +1,6 @@
 ﻿namespace StatServer
 {
-    public class HttpResponse
+    public class Response
     {
         public enum Status
         {
@@ -13,12 +13,12 @@
         public readonly int Code;
         public readonly string Message;
 
-        public HttpResponse(Status status)
+        public Response(Status status)
         {
             Code = (int)status;
         }
 
-        public HttpResponse(Status status, string message)
+        public Response(Status status, string message)
         {
             Code = (int)status;
             Message = message;

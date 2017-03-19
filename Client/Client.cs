@@ -3,10 +3,11 @@ using System.IO;
 using System.Net;
 using Newtonsoft.Json;
 using System.Web;
+using StatServer;
 
-namespace StatServer.Tests
+namespace Client
 {
-    class Client
+    public class Client
     {
         public readonly string Prefix;
         public Client(string prefix)
@@ -14,26 +15,26 @@ namespace StatServer.Tests
             Prefix = prefix;
         }
 
-        private static HttpResponse GetAnswer(WebRequest request)
+        private static Response GetAnswer(WebRequest request)
         {
             try
             {
-                var httpResponse = (HttpWebResponse)request.GetResponse();
-                var statusCode = httpResponse.StatusCode;
+                var Response = (HttpWebResponse)request.GetResponse();
+                var statusCode = Response.StatusCode;
                 string result;
-                using (var streamReader = new StreamReader(httpResponse.GetResponseStream()))
+                using (var streamReader = new StreamReader(Response.GetResponseStream()))
                     result = streamReader.ReadToEnd();
-                
 
-                return new HttpResponse((HttpResponse.Status)statusCode, result);
+
+                return new Response((Response.Status)statusCode, result);
             }
             catch (WebException)
             {
-                return new HttpResponse(HttpResponse.Status.NotFound);
+                return new Response(Response.Status.NotFound);
             }
         }
 
-        private HttpResponse SendGetRequest(string uri)
+        private Response SendGetRequest(string uri)
         {
             var httpWebRequest =
                 (HttpWebRequest)WebRequest.Create($"{Prefix}{uri}");
@@ -42,7 +43,7 @@ namespace StatServer.Tests
             return GetAnswer(httpWebRequest);
         }
 
-        private HttpResponse SendPutRequest(string uri, string json)
+        private Response SendPutRequest(string uri, string json)
         {
             var httpWebRequest =
                 (HttpWebRequest)WebRequest.Create($"{Prefix}{uri}");
@@ -61,7 +62,7 @@ namespace StatServer.Tests
             return this;
         }
 
-        public HttpResponse PutMatchStats(GameMatchStats stats, string endpoint, DateTime timestamp)
+        public Response PutMatchStats(GameMatchStats stats, string endpoint, DateTime timestamp)
         {
             var stringTimestamp = $"{timestamp:s}Z";
             var uri = $"servers/{endpoint}/matches/{stringTimestamp}";
@@ -69,58 +70,58 @@ namespace StatServer.Tests
             return SendPutRequest(uri, json);
         }
 
-        public HttpResponse PutServerInfo(GameServerInfo info, string endpoint)
+        public Response PutServerInfo(GameServerInfo info, string endpoint)
         {
             var uri = $"servers/{endpoint}/info";
             var json = JsonConvert.SerializeObject(info);
             return SendPutRequest(uri, json);
         }
 
-        public HttpResponse GetMatchStats(string endpoint, DateTime timestamp)
+        public Response GetMatchStats(string endpoint, DateTime timestamp)
         {
             var stringTimestamp = $"{timestamp:s}Z";
             var uri = $"servers/{endpoint}/matches/{stringTimestamp}";
             return SendGetRequest(uri);
         }
 
-        public HttpResponse GetServerInfo(string endpoint)
+        public Response GetServerInfo(string endpoint)
         {
             var uri = $"servers/{endpoint}/info";
             return SendGetRequest(uri);
         }
 
-        public HttpResponse GetAllServersInfo()
+        public Response GetAllServersInfo()
         {
             var uri = "servers/info";
             return SendGetRequest(uri);
         }
 
-        public HttpResponse GetServerStats(string endpoint)
+        public Response GetServerStats(string endpoint)
         {
             var uri = $"servers/{endpoint}/stats";
             return SendGetRequest(uri);
         }
 
-        public HttpResponse GetPlayerStats(string name)
+        public Response GetPlayerStats(string name)
         {
             var encodedName = HttpUtility.UrlEncode(name);
             var uri = $"players/{encodedName}/stats";
             return SendGetRequest(uri);
         }
 
-        public HttpResponse GetRecentMatches(int count)
+        public Response GetRecentMatches(int count)
         {
             var uri = $"reports/recent-matches/{count}";
             return SendGetRequest(uri);
         }
 
-        public HttpResponse GetBestPlayers(int count)
+        public Response GetBestPlayers(int count)
         {
             var uri = $"reports/best-players/{count}";
             return SendGetRequest(uri);
         }
 
-        public HttpResponse GetPopularServers(int count)
+        public Response GetPopularServers(int count)
         {
             var uri = $"reports/popular-servers/{count}";
             return SendGetRequest(uri);

@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StatServer", "StatServer\St
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StatServer.Tests", "StatServer.Tests\StatServer.Tests.csproj", "{7CE79FA0-DCF9-45D0-AA2A-E15B3B8453C8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Client", "Client\Client.csproj", "{F56EB517-0A42-4713-89EC-57F39DB7C0BA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{7CE79FA0-DCF9-45D0-AA2A-E15B3B8453C8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7CE79FA0-DCF9-45D0-AA2A-E15B3B8453C8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7CE79FA0-DCF9-45D0-AA2A-E15B3B8453C8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F56EB517-0A42-4713-89EC-57F39DB7C0BA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F56EB517-0A42-4713-89EC-57F39DB7C0BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F56EB517-0A42-4713-89EC-57F39DB7C0BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F56EB517-0A42-4713-89EC-57F39DB7C0BA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

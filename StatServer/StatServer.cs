@@ -104,15 +104,15 @@ namespace StatServer
                 //Thread.Sleep(1000);
                 
                 
-                HttpResponse response;
+                Response response;
                 if (context.Request.HttpMethod == HttpMethod.Put.ToString())
                 {
                     var json = GetRequestPostJson(context.Request);
-                    response = processor.HandleRequest(new HttpRequest(HttpMethod.Put, context.Request.RawUrl, json));
+                    response = processor.HandleRequest(new Request(HttpMethod.Put, context.Request.RawUrl, json));
                 }
                 else
                 {
-                    response = processor.HandleRequest(new HttpRequest(HttpMethod.Get, context.Request.RawUrl));
+                    response = processor.HandleRequest(new Request(HttpMethod.Get, context.Request.RawUrl));
                 }
                 
                 timer.Stop();
@@ -130,7 +130,7 @@ namespace StatServer
             }
         }
 
-        private static async Task SendMessage(HttpListenerContext context, HttpResponse response)
+        private static async Task SendMessage(HttpListenerContext context, Response response)
         {
             context.Response.StatusCode = response.Code;
 

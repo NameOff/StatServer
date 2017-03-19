@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using System.Collections.Generic;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 
 namespace StatServer
@@ -23,6 +24,8 @@ namespace StatServer
             var jsonSettings = new JsonSerializerSettings { ReferenceLoopHandling = ReferenceLoopHandling.Ignore, ContractResolver = serializer, Formatting = Formatting.Indented };
             var json = JsonConvert.SerializeObject(obj, jsonSettings);
             serializer.IgnoreAll();
+            var dict = JsonConvert.DeserializeObject<Dictionary<string,object>> (json);
+            json = JsonConvert.SerializeObject(dict, Formatting.Indented, Settings);
             return json;
         }
     }
