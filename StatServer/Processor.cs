@@ -26,9 +26,9 @@ namespace StatServer
 
         public Processor()
         {
-            Console.WriteLine("Wait...");
+            Console.WriteLine("Wait. Database is loading...");
             database = new Database();
-            Cache = new Cache(database);
+            Cache = database.CreateCache();
             MethodByPattern = CreateMethodByPattern();
             Console.WriteLine("OK. Start!");
         }
@@ -111,15 +111,10 @@ namespace StatServer
 
         private void UpdateLastDate(DateTime date)
         {
-            if (Cache.LastMatchDate == default(DateTime) || date > Cache.LastMatchDate)
+            if (date > Cache.LastMatchDate)
             {
                 Cache.LastMatchDate = date;
-                foreach (var endpoint in Cache.GameServersStats.Keys)
-                {
-                    if (!Cache.GameServersFirstMatchDate.ContainsKey(endpoint))
-                        continue;
-                    Cache.GameServersStats[endpoint].CalculateAverageData(Cache.GameServersFirstMatchDate[endpoint], date);
-                }
+                Cache.RecalculateGameServerStatsAverageData();
             }
         }
 
@@ -130,14 +125,13 @@ namespace StatServer
             if (!Cache.GameServersInformation.ContainsKey(endpoint))
                 return new Response(Response.Status.BadRequest);
             var matchInfo = new GameMatchResult(endpoint, Extensions.ParseTimestamp(timestamp));
+
             if (request.Method == HttpMethod.Put)
             {
-                //Console.WriteLine("PUT запрос GameMatchStats");
+                Console.WriteLine("PUT запрос GameMatchStats");
                 var matchStats = JsonConvert.DeserializeObject<GameMatchStats>(request.Json, Serializable.Settings);
                 matchInfo.Results = matchStats;
-
                 PutGameMatchResult(matchInfo);
-
                 return new Response(Response.Status.OK);
             }
             if (request.Method == HttpMethod.Get)
@@ -334,7 +328,7 @@ namespace StatServer
         {
             database.DropAllTables();
             database.CreateAllTables();
-            Cache = new Cache(database);
+            Cache = new Cache();
         }
     }
 }

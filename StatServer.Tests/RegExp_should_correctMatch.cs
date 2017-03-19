@@ -3,6 +3,7 @@ using FluentAssertions;
 
 namespace StatServer.Tests
 {
+    [TestFixture]
     class RegExp_should_correctMatch
     {
         [TestCase("/servers/192.123.123.1-8080/info", true)]

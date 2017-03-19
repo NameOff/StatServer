@@ -4,6 +4,7 @@ using FluentAssertions;
 
 namespace StatServer.Tests
 {
+    [TestFixture]
     class Processor_should
     {
         private Processor processor;

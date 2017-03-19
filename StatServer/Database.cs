@@ -12,7 +12,7 @@ namespace StatServer
         public const string DatabaseName = "statistics.sqlite";
         public static readonly string DatabasePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DatabaseName);
 
-        public enum Table
+        private enum Table
         {
             ServersInformation,
             GameMatchPlayersResults,
@@ -38,6 +38,99 @@ namespace StatServer
             tableRowsCount = new ConcurrentDictionary<Table, int>();
             foreach (var table in (Table[])Enum.GetValues(typeof(Table)))
                 tableRowsCount[table] = CalculateTableRowsCount(table);
+        }
+
+        public Cache CreateCache()
+        {
+            var cache = new Cache();
+            HandleServersInformationTable(cache);
+            HandleGameMatchStatsTable(cache);
+            HandlePlayersStatsTable(cache);
+            return cache;
+        }
+
+        private void HandleServersInformationTable(Cache cache)
+        {
+            var rows = GetAllRows(Table.ServersInformation);
+            foreach (var row in rows)
+            {
+                var id = int.Parse(row[0]);
+                var endpoint = row[3];
+                var serverInfo = new GameServerInfo(row[1], row[2]);
+                cache.GameServersMatchesPerDay[endpoint] = new ConcurrentDictionary<DateTime, int>();
+                cache.GameServersStats[endpoint] = new GameServerStats(endpoint, serverInfo.Name) { Info = serverInfo };
+                cache.GameServersInformation[endpoint] = id;
+            }
+        }
+
+        private void HandleGameMatchStatsTable(Cache cache)
+        {
+            var rows = GetAllRows(Table.GameMatchStats);
+            foreach (var row in rows)
+            {
+                var id = int.Parse(row[0]);
+                var matchResult = ParseMatchResult(row);
+                cache.GameMatches[matchResult] = id;
+                UpdateCacheGameServerInformation(cache, matchResult);
+
+                foreach (var player in matchResult.Results.Scoreboard)
+                    UpdateCachePlayerInformation(cache, player.Name, matchResult);
+
+                cache.RecentMatches.Add(matchResult);
+                if (cache.RecentMatches.Count >= StatServer.ReportStatsMaxCount * 20)
+                    cache.UpdateRecentMatches();
+            }
+            cache.UpdateRecentMatches();
+            cache.RecalculateGameServerStatsAverageData();
+        }
+
+        private void UpdateCacheGameServerInformation(Cache cache, GameMatchResult match)
+        {
+            var date = match.Timestamp.Date;
+            if (cache.LastMatchDate < match.Timestamp)
+                cache.LastMatchDate = match.Timestamp;
+            if (!cache.GameServersFirstMatchDate.ContainsKey(match.Server) || cache.GameServersFirstMatchDate[match.Server] > date)
+                cache.GameServersFirstMatchDate[match.Server] = date;
+            var serverMatchesPerDay = cache.GameServersMatchesPerDay[match.Server];
+            serverMatchesPerDay[date] = serverMatchesPerDay.ContainsKey(date) ? serverMatchesPerDay[date] + 1 : 1;
+            cache.GameServersStats[match.Server].Update(match, serverMatchesPerDay);
+        }
+
+        private void UpdateCachePlayerInformation(Cache cache, string player, GameMatchResult match)
+        {
+            var date = match.Timestamp.Date;
+            if (!cache.PlayersFirstMatchDate.ContainsKey(player) || cache.PlayersFirstMatchDate[player] > date)
+                cache.PlayersFirstMatchDate[player] = date;
+            if (!cache.PlayersMatchesPerDay.ContainsKey(player))
+                cache.PlayersMatchesPerDay[player] = new ConcurrentDictionary<DateTime, int>();
+            var playerMatches = cache.PlayersMatchesPerDay[player];
+            playerMatches[date.Date] = playerMatches.ContainsKey(date.Date) ? playerMatches[date.Date] + 1 : 1;
+        }
+
+        private void HandlePlayersStatsTable(Cache cache)
+        {
+            var rows = GetAllRows(Table.PlayersStats);
+            foreach (var row in rows)
+            {
+                var id = int.Parse(row[0]);
+                var name = row[1];
+                cache.PlayersStats[name] = id;
+                var totalKills = int.Parse(row[9]);
+                var totalDeaths = int.Parse(row[10]);
+                var totalPlayed = int.Parse(row[2]);
+                if (totalPlayed < 10 || totalDeaths == 0)
+                    continue;
+                var killToDeathRatio = PlayerStats.CalculateKillToDeathRatio(totalKills, totalDeaths);
+                cache.Players[name] = killToDeathRatio;
+            }
+        }
+
+        private GameMatchResult ParseMatchResult(string[] row)
+        {
+            var match = ParseGameMatchStats(row);
+            var endpoint = row[7];
+            var timestamp = Extensions.ParseTimestamp(row[8]);
+            return new GameMatchResult(endpoint, timestamp, match);
         }
 
         private void EnableWAL(SQLiteConnection connection)
@@ -82,52 +175,6 @@ namespace StatServer
             return playersStats;
         }
 
-        public ConcurrentDictionary<string, GameServerStats> CreateGameServersStatsDictionary(ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> serversMatchesPerDay)
-        {
-            var allServers = GetAllRows(Table.ServersInformation)
-                .Select(row => new GameServerInfoResponse(row[3], new GameServerInfo(row[1], row[2])));
-            var serversStats = new ConcurrentDictionary<string, GameServerStats>();
-            foreach (var server in allServers)
-                serversStats[server.Endpoint] = new GameServerStats(server.Endpoint, server.Info.Name) { Info = server.Info };
-            var allMatches = GetAllRows(Table.GameMatchStats);
-            var serverFirstMatchDate = new Dictionary<string, DateTime>();
-            var lastMatch = new DateTime();
-            foreach (var row in allMatches)
-            {
-                var endpoint = row[7];
-                var timestamp = Extensions.ParseTimestamp(row[8]);
-                if (lastMatch < timestamp)
-                    lastMatch = timestamp;
-                var match = ParseGameMatchStats(row);
-                var matchResult = new GameMatchResult(endpoint, timestamp) { Results = match };
-                if (!serverFirstMatchDate.ContainsKey(endpoint) || serverFirstMatchDate[endpoint] > timestamp.Date)
-                    serverFirstMatchDate[endpoint] = timestamp.Date;
-                serversStats[endpoint].Update(matchResult, serversMatchesPerDay[row[7]]);
-            }
-            foreach (var stats in serversStats.Values)
-                if (serverFirstMatchDate.ContainsKey(stats.Endpoint))
-                    stats.CalculateAverageData(serverFirstMatchDate[stats.Endpoint], lastMatch);
-            return serversStats;
-        }
-
-        public ConcurrentDictionary<string, double> CreatePlayersDictionary()
-        {
-            var players = new ConcurrentDictionary<string, double>();
-            var rows = GetAllRows(Table.PlayersStats);
-            foreach (var row in rows)
-            {
-                var name = row[1];
-                var totalKills = int.Parse(row[9]);
-                var totalDeaths = int.Parse(row[10]);
-                var totalPlayed = int.Parse(row[2]);
-                if (totalPlayed < 10 || totalDeaths == 0)
-                    continue;
-                var killToDeathRatio = PlayerStats.CalculateKillToDeathRatio(totalKills, totalDeaths);
-                players[name] = killToDeathRatio;
-            }
-            return players;
-        }
-
         private void ExecuteQuery(params string[] commands)
         {
             using (var connection = CreateConnection())
@@ -142,40 +189,6 @@ namespace StatServer
                 }
             }
 
-        }
-
-        public void SetDateTimeDictionaries(Cache cache)
-        {
-            var rows = GetAllRows(Table.GameMatchStats);
-            foreach (var row in rows)
-            {
-                var server = row[7];
-                var date = Extensions.ParseTimestamp(row[8]);
-                if (cache.LastMatchDate < date)
-                    cache.LastMatchDate = date;
-                var match = ParseGameMatchStats(row);
-                cache.RecentMatches.Add(new GameMatchResult(server, date) { Results = match });
-                if (cache.RecentMatches.Count >= StatServer.ReportStatsDefaultCount * 10)
-                    cache.UpdateRecentMatches();
-                if (!cache.GameServersFirstMatchDate.ContainsKey(server) || cache.GameServersFirstMatchDate[server] > date)
-                    cache.GameServersFirstMatchDate[server] = date.Date;
-                var ids = ParseIds(row[6]);
-                var players = GetPlayerInfo(ids);
-                foreach (var player in players)
-                {
-                    if (!cache.PlayersFirstMatchDate.ContainsKey(player.Name) || cache.PlayersFirstMatchDate[player.Name] > date)
-                        cache.PlayersFirstMatchDate[player.Name] = date.Date;
-                    if (!cache.PlayersMatchesPerDay.ContainsKey(player.Name))
-                        cache.PlayersMatchesPerDay[player.Name] = new ConcurrentDictionary<DateTime, int>();
-                    var playerMatches = cache.PlayersMatchesPerDay[player.Name];
-                    playerMatches[date.Date] = playerMatches.ContainsKey(date.Date) ? playerMatches[date.Date] + 1 : 1;
-                }
-                if (!cache.GameServersMatchesPerDay.ContainsKey(server))
-                    cache.GameServersMatchesPerDay[server] = new ConcurrentDictionary<DateTime, int>();
-                var gameServerMatches = cache.GameServersMatchesPerDay[server];
-                gameServerMatches[date.Date] = gameServerMatches.ContainsKey(date.Date) ? gameServerMatches[date.Date] + 1 : 1;
-            }
-            cache.UpdateRecentMatches();
         }
 
         private string[] GetTableRowById(Table table, int id)
@@ -193,7 +206,7 @@ namespace StatServer
             }
         }
 
-        public IEnumerable<string[]> GetAllRows(Table table)
+        private IEnumerable<string[]> GetAllRows(Table table)
         {
             var rowsCount = GetRowsCount(table);
             using (var connection = CreateConnection())
@@ -221,7 +234,7 @@ namespace StatServer
                 values[i] = reader.GetValue(i).ToString();
             return values;
         }
-        public int GetRowsCount(Table table)
+        private int GetRowsCount(Table table)
         {
             return tableRowsCount[table];
         }
@@ -350,29 +363,6 @@ namespace StatServer
         {
             InsertInto(Table.ServersInformation, info.Name, info.EncodeGameModes(), endpoint);
             return tableRowsCount[Table.ServersInformation];
-        }
-
-        public ConcurrentDictionary<string, int> CreateGameServersDictionary()
-        {
-            var gameServers = new ConcurrentDictionary<string, int>();
-            var rows = GetAllRows(Table.ServersInformation);
-            foreach (var row in rows)
-                gameServers[row[3]] = int.Parse(row[0]);
-            return gameServers;
-        }
-
-        public ConcurrentDictionary<GameMatchResult, int> CreateGameMatchDictionary()
-        {
-            var gameMatches = new ConcurrentDictionary<GameMatchResult, int>();
-            var rows = GetAllRows(Table.GameMatchStats);
-            foreach (var row in rows)
-            {
-                var server = row[7];
-                var timestamp = row[8];
-                var id = int.Parse(row[0]);
-                gameMatches[new GameMatchResult(server, Extensions.ParseTimestamp(timestamp))] = id;
-            }
-            return gameMatches;
         }
 
         public int InsertGameMatchStats(GameMatchResult info)

@@ -3,6 +3,7 @@ using NUnit.Framework;
 
 namespace StatServer.Tests
 {
+    [TestFixture]
     class Cache_should_haveCorrect
     {
         private Cache cache;
@@ -15,15 +16,16 @@ namespace StatServer.Tests
             processor = new Processor();
             processor.ClearDatabaseAndCache();
             PutGameMatches(session);
-            cache = new Cache(new Database());
+            cache = new Database().CreateCache();
         }
 
         public void PutGameMatches(GameSession session)
         {
             foreach (var server in session.Servers)
                 processor.PutGameServerInfo(server.Info, server.Endpoint);
-            foreach (var gameMatchResult in session.Matches)
-                processor.PutGameMatchResult(gameMatchResult);
+            for (var i = 0; i < 10; i++)
+                foreach (var gameMatchResult in session.Matches)
+                    processor.PutGameMatchResult(gameMatchResult);
         }
 
         [Test]

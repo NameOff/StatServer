@@ -5,6 +5,7 @@ using FluentAssertions;
 
 namespace StatServer.Tests
 {
+    [TestFixture]
     class PlayerStats_should
     {
         private PlayerStats playerStats;

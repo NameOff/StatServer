@@ -32,9 +32,9 @@ namespace StatServer
         [JsonIgnore]
         public ConcurrentDictionary<string, int> PlayedMaps { get; set; }
 
-        public GameServerStats(string serverId, string name, double averageMatchesPerDay = 0)
+        public GameServerStats(string endpoint, string name, double averageMatchesPerDay = 0)
         {
-            Endpoint = serverId;
+            Endpoint = endpoint;
             Name = name;
             PlayedGameModes = new ConcurrentDictionary<string, int>();
             PlayedMaps = new ConcurrentDictionary<string, int>();

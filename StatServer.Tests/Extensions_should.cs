@@ -5,6 +5,7 @@ using FluentAssertions;
 
 namespace StatServer.Tests
 {
+    [TestFixture]
     class Extensions_should
     {
         [Test]

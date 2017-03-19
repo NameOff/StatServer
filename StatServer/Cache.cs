@@ -20,19 +20,28 @@ namespace StatServer
         public ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>> PlayersMatchesPerDay { get; set; }
         public List<GameMatchResult> RecentMatches { get; set; }
 
-        public Cache(Database database)
+        public Cache()
         {
-            Players = database.CreatePlayersDictionary();
-            GameMatches = database.CreateGameMatchDictionary();
-            GameServersInformation = database.CreateGameServersDictionary();
-            PlayersStats = database.CreatePlayersStatsDictionary();
+            Players = new ConcurrentDictionary<string, double>();
+            GameServersInformation = new ConcurrentDictionary<string, int>();
+            GameMatches = new ConcurrentDictionary<GameMatchResult, int>();
             GameServersFirstMatchDate = new ConcurrentDictionary<string, DateTime>();
-            GameServersMatchesPerDay = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
             PlayersFirstMatchDate = new ConcurrentDictionary<string, DateTime>();
+            GameServersStats = new ConcurrentDictionary<string, GameServerStats>();
+            PlayersStats = new ConcurrentDictionary<string, int>();
+            GameServersMatchesPerDay = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
             PlayersMatchesPerDay = new ConcurrentDictionary<string, ConcurrentDictionary<DateTime, int>>();
             RecentMatches = new List<GameMatchResult>();
-            database.SetDateTimeDictionaries(this);
-            GameServersStats = database.CreateGameServersStatsDictionary(GameServersMatchesPerDay);
+        }
+
+        public void RecalculateGameServerStatsAverageData()
+        {
+            foreach (var server in GameServersStats.Keys)
+            {
+                if (!GameServersFirstMatchDate.ContainsKey(server))
+                    continue;
+                GameServersStats[server].CalculateAverageData(GameServersFirstMatchDate[server], LastMatchDate);
+            }
         }
 
         public void UpdateRecentMatches()

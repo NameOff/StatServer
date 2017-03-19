@@ -7,6 +7,7 @@ using Newtonsoft.Json;
 
 namespace StatServer.Tests
 {
+    [TestFixture]
     class StatServer_should_sendCorrectResponse
     {
         private StatServer server;

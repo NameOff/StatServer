@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Text;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using static System.String;
 
 namespace StatServer
 {
@@ -79,7 +77,6 @@ namespace StatServer
                     if (listener.IsListening)
                     {
                         var context = listener.GetContext();
-                        //HandleRequestAsync(context, counter);
                         Task.Run(() => HandleRequestAsync(context));
                     }
                 }
@@ -98,12 +95,6 @@ namespace StatServer
         {
             try
             {
-                var timer = new Stopwatch();
-                //Console.WriteLine($"Время начала {DateTime.Now}");
-                timer.Start();
-                //Thread.Sleep(1000);
-                
-                
                 Response response;
                 if (context.Request.HttpMethod == HttpMethod.Put.ToString())
                 {
@@ -114,14 +105,6 @@ namespace StatServer
                 {
                     response = processor.HandleRequest(new Request(HttpMethod.Get, context.Request.RawUrl));
                 }
-                
-                timer.Stop();
-                //Console.WriteLine($"Затраченное время: {timer.Elapsed}");
-                //Console.WriteLine(context.Request.UserHostName);
-                //Console.WriteLine(response.Code);
-                //Console.WriteLine(processor.RequestsCount);
-                //var response = new HttpResponse(HttpResponse.Status.OK);
-                
                 await SendMessage(context, response);
             }
             catch (HttpListenerException)
@@ -146,15 +129,7 @@ namespace StatServer
                 }
             }
 
-            RemoveHeaders(context.Response);
             context.Response.Close();
-        }
-
-        private static void RemoveHeaders(HttpListenerResponse response)
-        {
-            response.Headers.Add("Server", Empty);
-            response.Headers.Add("Date", Empty);
-            response.KeepAlive = false;
         }
 
         private static string GetRequestPostJson(HttpListenerRequest request)
