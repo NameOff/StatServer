@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text.RegularExpressions;
 using Fclp;
 
 namespace StatServer
@@ -8,7 +9,6 @@ namespace StatServer
         public static void Main(string[] args)
         {
             var commandLineParser = new FluentCommandLineParser<Options>();
-
             commandLineParser
                 .Setup(options => options.Prefix)
                 .As("prefix")

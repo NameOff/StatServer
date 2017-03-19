@@ -16,7 +16,7 @@ namespace StatServer
 
         public PlayerInfo(string name, int frags, int kills, int deaths)
         {
-            Name = name;
+            Name = name.ToLower();
             Frags = frags;
             Kills = kills;
             Deaths = deaths;

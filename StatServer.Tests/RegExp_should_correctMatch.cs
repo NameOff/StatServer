@@ -127,5 +127,18 @@ namespace StatServer.Tests
             // /reports/popular-servers[/<count>]
             Processor.PopularServersPath.IsMatch(path).Should().Be(isMatched);
         }
+        [TestCase("http://+:8080/", true)]
+        [TestCase("https://+:8080/", true)]
+        [TestCase("http://*:8080/", true)]
+        [TestCase("https://*:8080/", true)]
+        [TestCase("http://+:808099/", false)]
+        [TestCase("http://+:8080", false)]
+        [TestCase("http://+:/", false)]
+        [TestCase("http://:8080/", false)]
+        [TestCase("httpss://+:8080/", false)]
+        public void WithPrefix(string prefix, bool isMatched)
+        {
+            
+        }
     }
 }

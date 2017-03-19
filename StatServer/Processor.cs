@@ -30,7 +30,6 @@ namespace StatServer
             database = new Database();
             Cache = database.CreateCache();
             MethodByPattern = CreateMethodByPattern();
-            Console.WriteLine("OK. Start!");
         }
 
         private Dictionary<Regex, Func<Request, Response>> CreateMethodByPattern()
@@ -246,7 +245,7 @@ namespace StatServer
             if (request.Method != HttpMethod.Get)
                 return new Response(Response.Status.MethodNotAllowed);
             Console.WriteLine("GET запрос PlayerStats");
-            var name = HttpUtility.UrlDecode(PlayerStatsPath.Match(request.Uri).Groups["playerName"].ToString());
+            var name = HttpUtility.UrlDecode(PlayerStatsPath.Match(request.Uri).Groups["playerName"].ToString()).ToLower();
             var stats = GetPlayerStats(name);
             if (stats == null)
                 return new Response(Response.Status.NotFound);
@@ -256,6 +255,7 @@ namespace StatServer
 
         public PlayerStats GetPlayerStats(string name)
         {
+            name = name.ToLower();
             if (!Cache.PlayersMatchesPerDay.ContainsKey(name))
                 return null;
             var stats = database.GetPlayerStats(Cache.PlayersStats[name]);

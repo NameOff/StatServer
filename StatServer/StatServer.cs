@@ -3,6 +3,7 @@ using System.IO;
 using System.Net;
 using System.Text;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,6 +11,8 @@ namespace StatServer
 {
     public class StatServer : IDisposable
     {
+        public static readonly Regex PrefixPattern = new Regex(@"^(http|https)://[\+\*]:(\d{1,5})/$", RegexOptions.Compiled);
+
         private readonly HttpListener listener;
 
         public readonly Processor processor;
@@ -52,15 +55,39 @@ namespace StatServer
             }
         }
 
+        private void LogAndWriteMessage(string message)
+        {
+            Logger.Log.Debug(message);
+            Console.WriteLine(message);
+        }
+
         public void Start(string prefix)
         {
+            if (!Uri.IsWellFormedUriString(prefix, UriKind.Absolute) && !PrefixPattern.IsMatch(prefix))
+            {
+                LogAndWriteMessage("Invalid prefix");
+                return;
+            }
             if (isRunning)
                 return;
             lock (listener)
             {
-                listener.Prefixes.Clear();
-                listener.Prefixes.Add(prefix);
-                listener.Start();
+                try
+                {
+                    listener.Prefixes.Clear();
+                    listener.Prefixes.Add(prefix);
+                    listener.Start();
+                }
+                catch (HttpListenerException e)
+                {
+                    LogAndWriteMessage(e.Message);
+                    return;
+                }
+                catch (ArgumentException e)
+                {
+                    LogAndWriteMessage(e.Message);
+                    return;
+                }
                 listenerThread = new Thread(Listen)
                 {
                     IsBackground = true,
@@ -71,11 +98,11 @@ namespace StatServer
                 isRunning = true;
             }
             listenerThread.Join();
-            
         }
 
         private void Listen()
         {
+            Console.WriteLine("Start!");
             while (true)
             {
                 try
@@ -115,7 +142,7 @@ namespace StatServer
                 {
                     response = processor.HandleRequest(new Request(HttpMethod.Get, context.Request.RawUrl, context.Request.RemoteEndPoint));
                 }
-                if (response.Code == (int) Response.Status.MethodNotAllowed)
+                if (response.Code == (int)Response.Status.MethodNotAllowed)
                     Logger.Log.Error($"Method not allowed. Client: {context.Request.RemoteEndPoint}");
                 await SendMessage(context, response);
             }

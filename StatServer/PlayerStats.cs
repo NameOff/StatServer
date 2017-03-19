@@ -35,7 +35,7 @@ namespace StatServer
             ConcurrentDictionary<string, int> modes, double averageScoreboardPercent,
             DateTime lastMatchPlayed, int maximumMatchesPerDay, int totalKills, int totalDeaths)
         {
-            Name = name;
+            Name = name.ToLower();
             TotalMatchesPlayed = totalMatchesPlayed;
             TotalMatchesWon = totalMatchesWon;
             PlayedServers = servers;
@@ -69,14 +69,14 @@ namespace StatServer
 
         public PlayerStats(string name)
         {
-            Name = name;
+            Name = name.ToLower();
             PlayedModes = new ConcurrentDictionary<string, int>();
             PlayedServers = new ConcurrentDictionary<string, int>();
         }
 
         public PlayerStats(string name, double killToDeathRatio)
         {
-            Name = name;
+            Name = name.ToLower();
             KillToDeathRatio = killToDeathRatio;
         }
 
@@ -92,7 +92,7 @@ namespace StatServer
             var place = -1;
             for (var i = 0; i < players.Length; i++)
             {
-                if (players[i].Name != Name) continue;
+                if (players[i].Name.ToLower() != Name.ToLower()) continue;
                 place = i + 1;
                 break;
             }

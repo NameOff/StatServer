@@ -99,7 +99,7 @@ namespace StatServer.Tests
         {
             return new PlayerStats
             {
-                Name = name,
+                Name = name.ToLower(),
                 TotalMatchesPlayed = totalMatchesPlayed,
                 TotalMatchesWon = totalMatchesWon,
                 FavoriteServer = favoriteServer,

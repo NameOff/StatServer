@@ -63,6 +63,7 @@ namespace StatServer.Tests
         [TestCase(Test.PlayerApollon76)]
         public void HaveCorrectPlayerStats(string playerName)
         {
+            playerName = playerName.ToLower();
             var precision = 1e-6;
             var stats = processor.GetPlayerStats(playerName);
             stats = RemoveExcessFields(stats);
