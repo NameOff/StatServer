@@ -86,6 +86,21 @@ namespace StatServer.Tests
             .WhenTypeIs<double>());
         }
 
+        [Test]
+        public void HaveCorrectPopularServers()
+        {
+            var expected = new[]
+            {
+                new GameServerStats(Test.Server3Endpoint, Test.Server3Name, 1.0),
+                new GameServerStats(Test.Server1Endpoint, Test.Server1Name, 0.75),
+                new GameServerStats(Test.Server2Endpoint, Test.Server2Name, 0.75)
+            };
+            var result = processor.GetPopularServers(50)
+                .Select(server => new GameServerStats(server.Endpoint, server.Name, server.AverageMatchesPerDay))
+                .ToArray();
+            result.ShouldBeEquivalentTo(expected);
+        }
+
         [OneTimeTearDown]
         public void TearDown()
         {

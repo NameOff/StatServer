@@ -44,9 +44,12 @@ namespace StatServer
 
         public void Stop()
         {
-            isRunning = false;
-            listener.Stop();
-            listener.Close();
+            lock (listener)
+            {
+                isRunning = false;
+                listener.Stop();
+                listener.Close();
+            }
         }
 
         public void Start(string prefix)
@@ -66,8 +69,9 @@ namespace StatServer
                 listenerThread.Start();
 
                 isRunning = true;
-                listenerThread.Join();
             }
+            listenerThread.Join();
+            
         }
 
         private void Listen()
